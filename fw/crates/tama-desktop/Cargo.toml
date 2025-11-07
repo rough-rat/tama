@@ -1,0 +1,11 @@
+[package]
+name = "tama-desktop"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tama-core = { path = "../tama-core" }
+
+embedded-graphics = { workspace = true }
+anyhow = "1.0.100"
+embedded-graphics-simulator = "0.8.0"
