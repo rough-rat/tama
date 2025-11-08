@@ -8,7 +8,12 @@ use embedded_graphics::{
 use heapless::Deque;
 use rand::Rng;
 
-use crate::{consts, engine::Context, input::Button, scenes::Scene};
+use crate::{
+    consts,
+    engine::Context,
+    input::Button,
+    scenes::{Scene, UpdateResult},
+};
 
 const SCROLL_SPEED: i32 = 1;
 const SPACING: i32 = 100;
@@ -16,6 +21,7 @@ const PIPE_WIDTH: u32 = 32;
 const GAP_HEIGHT_RANGE: Range<i32> = 64..128;
 const GAP_CENTER_RANGE: Range<i32> = -64..64;
 
+const PLAYER_RADIUS: u32 = 8;
 const PLAYER_GRAVITY: f32 = 0.7;
 const PLAYER_JUMP_VELOCITY: f32 = 7.0;
 
@@ -39,8 +45,7 @@ impl FlappyScene {
 }
 
 impl Scene for FlappyScene {
-    fn update(&mut self, ctx: &mut Context) {
-
+    fn update(&mut self, ctx: &mut Context) -> UpdateResult {
         // Pipes
         if self.pipes.is_empty() || self.pipes.back().unwrap().x < consts::WIDTH as i32 - SPACING {
             self.pipes
@@ -70,6 +75,33 @@ impl Scene for FlappyScene {
         self.player_y += self.player_y_speed;
         self.player_y_speed += PLAYER_GRAVITY;
 
+        // collision
+        let radius = PLAYER_RADIUS as i32;
+
+        let is_in_bounds = self.player_y as i32 - radius >= 0
+            && self.player_y as i32 + radius <= consts::HEIGHT as i32;
+        if !is_in_bounds {
+            return UpdateResult::ChangeScene(FlappyScene::new());
+        }
+
+        for pipe in self.pipes.iter() {
+            // stop if the pipe is too far
+            if pipe.x > self.player_x + radius {
+                break;
+            }
+
+            let has_x_overlap = self.player_x + radius > pipe.x
+                && self.player_x - radius < pipe.x + PIPE_WIDTH as i32;
+            let y = self.player_y as i32;
+            let has_y_overlap = y - radius < pipe.center_y - pipe.gap_height / 2
+                || y + radius > pipe.center_y + pipe.gap_height / 2;
+
+            if has_x_overlap && has_y_overlap {
+                return UpdateResult::ChangeScene(FlappyScene::new());
+            }
+        }
+
+        UpdateResult::None
     }
 
     fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
@@ -103,9 +135,12 @@ impl Scene for FlappyScene {
             .draw(target)?;
 
             // player
-            Circle::with_center(Point::new(self.player_x, self.player_y as i32), 16)
-                .into_styled(green_fill)
-                .draw(target)?;
+            Circle::with_center(
+                Point::new(self.player_x, self.player_y as i32),
+                PLAYER_RADIUS * 2,
+            )
+            .into_styled(green_fill)
+            .draw(target)?;
         }
 
         Ok(())

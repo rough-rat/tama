@@ -4,7 +4,7 @@ use embedded_graphics::{
     primitives::{Circle, PrimitiveStyle},
 };
 
-use crate::{consts, engine::Context, scenes::Scene};
+use crate::{consts, engine::Context, scenes::{Scene, UpdateResult}};
 
 /// Very simple test scene
 pub struct DvdScene {
@@ -29,7 +29,7 @@ impl DvdScene {
 }
 
 impl Scene for DvdScene {
-    fn update(&mut self, _ctx: &mut Context) {
+    fn update(&mut self, _ctx: &mut Context) -> UpdateResult {
         self.x += self.vel_x;
         if self.x <= self.radius as i32 || self.x >= (consts::WIDTH - self.radius) as i32 {
             self.vel_x = -self.vel_x;
@@ -39,6 +39,8 @@ impl Scene for DvdScene {
         if self.y <= self.radius as i32 || self.y >= (consts::HEIGHT - self.radius) as i32 {
             self.vel_y = -self.vel_y;
         }
+
+        UpdateResult::None
     }
 
     fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>

@@ -4,7 +4,7 @@ use embedded_graphics::{
 };
 use rand::{SeedableRng, rngs::SmallRng};
 
-use crate::{consts, input::Input, scenes::{Scene as _, flappy::FlappyScene}};
+use crate::{consts, input::Input, scenes::{Scene as _, UpdateResult, flappy::FlappyScene}};
 
 
 pub struct Engine {
@@ -34,7 +34,12 @@ impl Engine {
     }
 
     pub fn update(&mut self) {
-        self.scene.update(&mut self.context);
+        let result = self.scene.update(&mut self.context);
+
+        match result {
+            UpdateResult::ChangeScene(scene) => self.scene = scene,
+            UpdateResult::None => (),
+        }
     }
 
     pub fn input_mut(&mut self) -> &mut Input {
