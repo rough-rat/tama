@@ -4,7 +4,7 @@ use embedded_graphics::{
 };
 use rand::{SeedableRng, rngs::SmallRng};
 
-use crate::{consts, scenes::{Scene as _, flappy::FlappyScene}};
+use crate::{consts, input::Input, scenes::{Scene as _, flappy::FlappyScene}};
 
 
 pub struct Engine {
@@ -36,16 +36,23 @@ impl Engine {
     pub fn update(&mut self) {
         self.scene.update(&mut self.context);
     }
+
+    pub fn input_mut(&mut self) -> &mut Input {
+        &mut self.context.input
+    }
 }
 
 pub struct Context {
     pub rng: SmallRng,
+    pub input: Input,
 }
 
 impl Context {
     fn new() -> Self {
         Self {
             rng: SmallRng::seed_from_u64(2137),
+            input: Input::new(),
         }
     }
 }
+

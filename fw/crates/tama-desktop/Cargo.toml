@@ -9,3 +9,5 @@ tama-core = { path = "../tama-core" }
 embedded-graphics = { workspace = true }
 anyhow = "1.0.100"
 embedded-graphics-simulator = "0.8.0"
+defmt = { workspace = true }
+defmt-macros = "1.0.1"

@@ -1,12 +1,19 @@
-use embedded_graphics::{prelude::Size};
-use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window};
-use tama_core::engine::Engine;
-use tama_core::consts;
+use std::collections::HashMap;
 
+use embedded_graphics::prelude::Size;
+use embedded_graphics_simulator::sdl2::Keycode;
+use embedded_graphics_simulator::{
+    OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
+};
+use tama_core::consts;
+use tama_core::engine::Engine;
+use tama_core::input::{Button, ButtonState};
+
+mod log;
 
 fn main() -> anyhow::Result<()> {
-
-    let mut display = SimulatorDisplay::<consts::ColorType>::new(Size::new(consts::WIDTH, consts::HEIGHT));
+    let mut display =
+        SimulatorDisplay::<consts::ColorType>::new(Size::new(consts::WIDTH, consts::HEIGHT));
     let settings = OutputSettingsBuilder::new().scale(2).build();
 
     let mut window = Window::new("tama-desktop", &settings);
@@ -14,19 +21,67 @@ fn main() -> anyhow::Result<()> {
     let mut engine = Engine::new();
     window.update(&display);
 
+    let mut button_pressed: HashMap<Button, bool> = HashMap::new();
+
     'running: loop {
+        for (button, pressed) in button_pressed.iter() {
+            engine.input_mut().set_button(
+                *button,
+                if *pressed {
+                    ButtonState::Pressed
+                } else {
+                    ButtonState::Released
+                },
+            );
+        }
+
         for event in window.events() {
-            #[allow(clippy::single_match)]
             match event {
                 SimulatorEvent::Quit => {
                     break 'running;
-                },
+                }
+                SimulatorEvent::KeyDown { keycode, repeat: false, .. } => {
+                    let button = match keycode {
+                        Keycode::W => Some(Button::Up),
+                        Keycode::A => Some(Button::Left),
+                        Keycode::S => Some(Button::Down),
+                        Keycode::D => Some(Button::Right),
+                        Keycode::J => Some(Button::A),
+                        Keycode::K => Some(Button::B),
+                        _ => None,
+                    };
+
+                    if let Some(button) = button {
+                        engine
+                            .input_mut()
+                            .set_button(button, ButtonState::JustPressed);
+                        button_pressed.insert(button, true);
+                    }
+                }
+                SimulatorEvent::KeyUp { keycode, .. } => {
+                    let button = match keycode {
+                        Keycode::W => Some(Button::Up),
+                        Keycode::A => Some(Button::Left),
+                        Keycode::S => Some(Button::Down),
+                        Keycode::D => Some(Button::Right),
+                        Keycode::J => Some(Button::A),
+                        Keycode::K => Some(Button::B),
+                        _ => None,
+                    };
+
+                    if let Some(button) = button {
+                        engine
+                            .input_mut()
+                            .set_button(button, ButtonState::JustReleased);
+                        button_pressed.insert(button, false);
+                    }
+                }
                 _ => (),
             }
         }
+
         engine.update();
         engine.render(&mut display)?;
-
         window.update(&display);
     }
 
