@@ -2,13 +2,14 @@
 use embedded_graphics::{
     prelude::DrawTarget,
 };
+use rand::{SeedableRng, rngs::SmallRng};
 
-use crate::{consts, scenes::{Scene as _, dvd::DvdScene}};
-
+use crate::{consts, scenes::{Scene as _, flappy::FlappyScene}};
 
 
 pub struct Engine {
-    scene: DvdScene,
+    scene: FlappyScene,
+    context: Context,
 }
 
 impl Default for Engine {
@@ -20,7 +21,8 @@ impl Default for Engine {
 impl Engine {
     pub fn new() -> Self {
         Self {
-            scene: DvdScene::new(),
+            scene: FlappyScene::new(),
+            context: Context::new(),
         }
     }
 
@@ -32,6 +34,18 @@ impl Engine {
     }
 
     pub fn update(&mut self) {
-        self.scene.update();
+        self.scene.update(&mut self.context);
+    }
+}
+
+pub struct Context {
+    pub rng: SmallRng,
+}
+
+impl Context {
+    fn new() -> Self {
+        Self {
+            rng: SmallRng::seed_from_u64(2137),
+        }
     }
 }
