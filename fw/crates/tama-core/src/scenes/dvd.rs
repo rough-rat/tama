@@ -4,7 +4,7 @@ use embedded_graphics::{
     primitives::{Circle, PrimitiveStyle},
 };
 
-use crate::{consts, engine::Context, scenes::{Scene, UpdateResult}};
+use crate::{assets, consts, engine::Context, gfx::Sprite, scenes::{Scene, UpdateResult}};
 
 /// Very simple test scene
 pub struct DvdScene {
@@ -23,7 +23,7 @@ impl DvdScene {
             y: consts::HEIGHT as i32 / 2,
             vel_x: 1,
             vel_y: -1,
-            radius: 20,
+            radius: 64,
         }
     }
 }
@@ -47,12 +47,14 @@ impl Scene for DvdScene {
     where
         D: DrawTarget<Color = consts::ColorType>,
     {
-        target.clear(consts::ColorType::BLACK)?;
+        target.clear(consts::ColorType::WHITE)?;
 
-        let fill = PrimitiveStyle::with_fill(consts::ColorType::RED);
-        Circle::with_center(Point::new(self.x, self.y), self.radius * 2)
-            .into_styled(fill)
-            .draw(target)?;
+        // let fill = PrimitiveStyle::with_fill(consts::ColorType::RED);
+        // Circle::with_center(Point::new(self.x, self.y), self.radius * 2)
+        //     .into_styled(fill)
+        //     .draw(target)?;
+
+        Sprite::new(&*assets::images::PAPAJ, Point::new(self.x - self.radius as i32, self.y - self.radius as i32)).draw(target)?;
 
         Ok(())
     }

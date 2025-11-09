@@ -9,4 +9,6 @@ pub mod input;
 pub mod output;
 
 mod scenes;
+mod assets;
+mod gfx;
 
