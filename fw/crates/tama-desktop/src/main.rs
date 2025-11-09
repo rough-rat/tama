@@ -14,7 +14,7 @@ mod log;
 fn main() -> anyhow::Result<()> {
     let mut display =
         SimulatorDisplay::<consts::ColorType>::new(Size::new(consts::WIDTH, consts::HEIGHT));
-    let settings = OutputSettingsBuilder::new().scale(2).build();
+    let settings = OutputSettingsBuilder::new().scale(2).pixel_spacing(0).build();
 
     let mut window = Window::new("tama-desktop", &settings);
     window.set_max_fps(30);
@@ -24,6 +24,7 @@ fn main() -> anyhow::Result<()> {
     let mut button_pressed: HashMap<Button, bool> = HashMap::new();
 
     'running: loop {
+        // there's a 100% a better way to handle input but idk, this is just for testing
         for (button, pressed) in button_pressed.iter() {
             engine.input_mut().set_button(
                 *button,
