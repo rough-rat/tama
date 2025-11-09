@@ -1,18 +1,13 @@
 use core::ops::Range;
 
 use embedded_graphics::{
-    Drawable as _,
-    prelude::{DrawTarget, Point, Primitive, RgbColor, Size},
-    primitives::{Circle, PrimitiveStyle, Rectangle},
+    Drawable as _, image::Image, prelude::{DrawTarget, Point, Primitive, RgbColor, Size}, primitives::{Circle, PrimitiveStyle, Rectangle}
 };
 use heapless::Deque;
 use rand::Rng;
 
 use crate::{
-    consts,
-    engine::Context,
-    input::Button,
-    scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene},
+    assets, consts, engine::Context, gfx::Sprite, input::Button, scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene}
 };
 
 const SCROLL_SPEED: i32 = 1;
@@ -138,12 +133,14 @@ impl Scene for FlappyScene {
             .draw(target)?;
 
             // player
-            Circle::with_center(
-                Point::new(self.player_x, self.player_y as i32),
-                PLAYER_RADIUS * 2,
-            )
-            .into_styled(green_fill)
-            .draw(target)?;
+            // Circle::with_center(
+            //     Point::new(self.player_x, self.player_y as i32),
+            //     PLAYER_RADIUS * 2,
+            // )
+            // .into_styled(green_fill)
+            // .draw(target)?;
+
+            Sprite::new(&*assets::images::PAPAJ_SMOL, Point::new(self.player_x - PLAYER_RADIUS as i32, self.player_y as i32 - PLAYER_RADIUS as i32)).draw(target)?;
         }
 
         Ok(())
