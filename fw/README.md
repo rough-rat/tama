@@ -11,6 +11,13 @@
 
 To run the simulator it should be enough to do `cargo run`. You might need to install `sdl2` libraries first ([embedded_graphics_simulator guide](https://github.com/embedded-graphics/simulator#setup)).
 
+## simulator
+
+- wasd -> arrows
+- j -> A
+- k -> B
+- escape -> quit 
+
 ## roadmap
 
 - [ ] engine
