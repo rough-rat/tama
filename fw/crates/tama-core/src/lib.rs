@@ -10,6 +10,8 @@ pub mod log_buffer;
 pub mod output;
 
 mod scenes;
+mod assets;
+mod gfx;
 
 /// Log a notice-level message (above error, always captured).
 /// 

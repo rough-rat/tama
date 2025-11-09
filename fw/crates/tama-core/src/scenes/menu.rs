@@ -1,12 +1,13 @@
 use embedded_graphics::{
     Drawable as _,
+    image::Image,
     mono_font::{MonoTextStyleBuilder, ascii::FONT_4X6},
     prelude::{DrawTarget, Point, RgbColor},
     text::{Alignment, Text},
 };
 
 use crate::{
-    consts, input::Button, scenes::{Scene, SceneWrapper, UpdateResult, flappy::FlappyScene}
+    assets, consts, gfx::Sprite, input::Button, scenes::{Scene, SceneWrapper, UpdateResult, flappy::FlappyScene}
 };
 
 pub struct MenuScene;
@@ -20,7 +21,7 @@ impl MenuScene {
 impl Scene for MenuScene {
     fn update(&mut self, ctx: &mut crate::engine::Context) -> UpdateResult {
         if ctx.input.is_just_pressed(Button::A) {
-            return UpdateResult::ChangeScene(SceneWrapper::from(FlappyScene::new()))
+            return UpdateResult::ChangeScene(SceneWrapper::from(FlappyScene::new()));
         }
         UpdateResult::None
     }
@@ -43,6 +44,10 @@ impl Scene for MenuScene {
             Alignment::Center,
         )
         .draw(target)?;
+
+        // deref to unwrap the lazy_static
+        // Image::new(&*assets::images::PAPAJ, Point::new(0, 0)).draw(target)?;
+        Sprite::new(&*assets::images::PAPAJ, Point::new(10, 0)).draw(target)?;
 
         Ok(())
     }
