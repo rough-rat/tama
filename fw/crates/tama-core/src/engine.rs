@@ -4,7 +4,7 @@ use embedded_graphics::{
 };
 use rand::{SeedableRng, rngs::SmallRng};
 
-use crate::{consts, input::Input, scenes::{Scene as _, SceneWrapper, UpdateResult, flappy::FlappyScene, menu::MenuScene}};
+use crate::{consts, input::Input, scenes::{Scene as _, SceneWrapper, UpdateResult, selftest::SelfTestScene}};
 
 
 pub struct Engine {
@@ -21,7 +21,7 @@ impl Default for Engine {
 impl Engine {
     pub fn new() -> Self {
         Self {
-            scene: SceneWrapper::from(MenuScene::new()),
+            scene: SceneWrapper::from(SelfTestScene::new()),
             context: Context::new(),
         }
     }

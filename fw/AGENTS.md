@@ -1,0 +1,1 @@
+for compilation, use: `cargo +nightly run --bin tama-desktop`
