@@ -9,22 +9,12 @@ use tama_core::consts;
 use tama_core::engine::Engine;
 use tama_core::input::{Button, ButtonState};
 
+use tama_core::input::SensorType;
+
 mod log;
 
-fn main() -> anyhow::Result<()> {
-    let mut display =
-        SimulatorDisplay::<consts::ColorType>::new(Size::new(consts::WIDTH, consts::HEIGHT));
-    let settings = OutputSettingsBuilder::new().scale(2).pixel_spacing(0).build();
-
-    let mut window = Window::new("tama-desktop", &settings);
-    window.set_max_fps(30);
-    let mut engine = Engine::new();
-    window.update(&display);
-
-    let mut button_pressed: HashMap<Button, bool> = HashMap::new();
-
-    'running: loop {
-        // there's a 100% a better way to handle input but idk, this is just for testing
+fn handle_simulator_events(engine: &mut Engine, window: &mut Window, button_pressed: &mut HashMap<Button, bool>) -> bool {
+    // there's a 100% a better way to handle input but idk, this is just for testing
         for (button, pressed) in button_pressed.iter() {
             engine.input_mut().set_button(
                 *button,
@@ -39,7 +29,7 @@ fn main() -> anyhow::Result<()> {
         for event in window.events() {
             match event {
                 SimulatorEvent::Quit => {
-                    break 'running;
+                    return false;
                 }
                 SimulatorEvent::KeyDown { keycode, repeat: false, .. } => {
                     let button = match keycode {
@@ -80,10 +70,37 @@ fn main() -> anyhow::Result<()> {
                 _ => (),
             }
         }
+    true
+
+}
+
+fn generate_mock_hw_data(engine: &mut Engine) {
+    // generate some mock sensor data for testing
+    let time_ms = 0; // TODO: get actual time
+    engine.input_mut().update_sensor(SensorType::LightSensor, 0.5, time_ms);
+    engine.input_mut().update_sensor(SensorType::Thermometer, 25.0, time_ms);
+    engine.input_mut().update_sensor(SensorType::BatteryVoltage, 3.7, time_ms);
+}
+
+fn main() -> anyhow::Result<()> {
+    let mut display =
+        SimulatorDisplay::<consts::ColorType>::new(Size::new(consts::WIDTH, consts::HEIGHT));
+    let settings = OutputSettingsBuilder::new().scale(2).pixel_spacing(0).build();
+
+    let mut window = Window::new("tama-desktop", &settings);
+    window.set_max_fps(30);
+    let mut engine = Engine::new();
+    let mut button_pressed: HashMap<Button, bool> = HashMap::new();
+
+    'running: loop {
+        window.update(&display);
+
+        if !handle_simulator_events(&mut engine, &mut window, &mut button_pressed) {
+            break 'running;
+        } //TODO verbose exit handling        
 
         engine.update();
         engine.render(&mut display)?;
-        window.update(&display);
     }
 
     Ok(())
