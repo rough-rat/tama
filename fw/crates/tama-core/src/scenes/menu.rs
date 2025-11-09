@@ -2,7 +2,7 @@ use embedded_graphics::{
     Drawable as _,
     mono_font::{MonoTextStyleBuilder, ascii::FONT_4X6},
     prelude::{DrawTarget, Point, RgbColor},
-    text::{Alignment, Text, TextStyle, TextStyleBuilder},
+    text::{Alignment, Text},
 };
 
 use crate::{
