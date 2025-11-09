@@ -12,7 +12,7 @@ use crate::{
     consts,
     engine::Context,
     input::Button,
-    scenes::{Scene, UpdateResult},
+    scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene},
 };
 
 const SCROLL_SPEED: i32 = 1;
@@ -80,8 +80,9 @@ impl Scene for FlappyScene {
 
         let is_in_bounds = self.player_y as i32 - radius >= 0
             && self.player_y as i32 + radius <= consts::HEIGHT as i32;
+
         if !is_in_bounds {
-            return UpdateResult::ChangeScene(FlappyScene::new());
+            return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
         }
 
         for pipe in self.pipes.iter() {
@@ -97,7 +98,7 @@ impl Scene for FlappyScene {
                 || y + radius > pipe.center_y + pipe.gap_height / 2;
 
             if has_x_overlap && has_y_overlap {
-                return UpdateResult::ChangeScene(FlappyScene::new());
+                return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
             }
         }
 
@@ -108,7 +109,6 @@ impl Scene for FlappyScene {
     where
         D: DrawTarget<Color = consts::ColorType>,
     {
-        // todo clear screen
         target.clear(consts::ColorType::WHITE)?;
 
         let black_fill = PrimitiveStyle::with_fill(consts::ColorType::BLACK);
