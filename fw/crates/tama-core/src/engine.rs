@@ -1,4 +1,4 @@
-
+use alloc::boxed::Box;
 use embedded_graphics::{
     prelude::DrawTarget,
 };
@@ -15,27 +15,30 @@ impl BuzzerTrait for StubBuzzer {
     }
 }
 
-pub struct Engine<B: BuzzerTrait = StubBuzzer> {
+pub struct Engine {
     scene: SceneWrapper,
-    buzzer: B,
+    buzzer: Box<dyn BuzzerTrait>,
     rng: SmallRng,
     input: Input,
 }
 
-impl Default for Engine<StubBuzzer> {
+impl Default for Engine {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Engine<StubBuzzer> {
+impl Engine {
     pub fn new() -> Self {
-        Self::with_buzzer(StubBuzzer)
+        Self {
+            scene: SceneWrapper::from(SelfTestScene::new()),
+            buzzer: Box::new(StubBuzzer),
+            rng: SmallRng::seed_from_u64(2137),
+            input: Input::new(),
+        }
     }
-}
 
-impl<B: BuzzerTrait> Engine<B> {
-    pub fn with_buzzer(buzzer: B) -> Self {
+    pub fn with_buzzer(buzzer: Box<dyn BuzzerTrait>) -> Self {
         Self {
             scene: SceneWrapper::from(SelfTestScene::new()),
             buzzer,
@@ -53,7 +56,7 @@ impl<B: BuzzerTrait> Engine<B> {
 
     pub fn update(&mut self) {
         // Create Context on the fly with references to buzzer
-        let mut context = Context::new(&self.buzzer);
+        let mut context = Context::new(&*self.buzzer);
         // Temporarily swap input to avoid borrowing issues
         core::mem::swap(&mut context.input, &mut self.input);
         core::mem::swap(&mut context.rng, &mut self.rng);
@@ -65,7 +68,10 @@ impl<B: BuzzerTrait> Engine<B> {
         core::mem::swap(&mut context.rng, &mut self.rng);
 
         match result {
-            UpdateResult::ChangeScene(scene) => self.scene = scene,
+            UpdateResult::ChangeScene(scene) => {
+                log::info!("Scene changed");
+                self.scene = scene;
+            }
             UpdateResult::None => (),
         }
     }

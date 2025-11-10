@@ -67,6 +67,7 @@ impl Scene for SelfTestScene {
             
             if test_elapsed >= current_entry.delay_ms {
                 // Move to next test
+                log::debug!("Self-test: {} completed", current_entry.name);
                 self.current_test += 1;
                 self.test_start_time = self.elapsed_ms;
 
