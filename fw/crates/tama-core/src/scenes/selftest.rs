@@ -41,7 +41,7 @@ impl SelfTestScene {
 }
 
 fn get_music_samples() -> heapless::Vec<(u32, u32), 10> {
-    let frequencies  =[293, 329, 349, 329, 293, 261, 261, 261, 261, 261];
+    let frequencies  = [293, 329, 349, 329, 293, 261, 261, 261, 261, 261];
 
     // build a heapless Vec of (frequency, duration_ms) pairs; capacity 16 is enough for 15 entries
     let mut samples: heapless::Vec<(u32, u32), 10> = heapless::Vec::new();
