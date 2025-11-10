@@ -70,6 +70,7 @@ impl Scene for FlappyScene {
         // player
         if ctx.input.is_just_pressed(Button::Up) {
             self.player_y_speed = -PLAYER_JUMP_VELOCITY;
+            ctx.output.play_tone(40, 20);
         }
 
         self.player_y += self.player_y_speed;
@@ -82,6 +83,7 @@ impl Scene for FlappyScene {
             && self.player_y as i32 + radius <= consts::HEIGHT as i32;
 
         if !is_in_bounds {
+            ctx.output.play_tone(60, 500);
             return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
         }
 
@@ -98,6 +100,7 @@ impl Scene for FlappyScene {
                 || y + radius > pipe.center_y + pipe.gap_height / 2;
 
             if has_x_overlap && has_y_overlap {
+                ctx.output.play_tone(58, 500);
                 return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
             }
         }
