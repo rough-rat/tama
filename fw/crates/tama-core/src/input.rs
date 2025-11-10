@@ -1,8 +1,3 @@
-use defmt::println;
-
-
-
-
 const MOVING_AVG_ALPHA: f32 = 0.1;
 
 #[derive(PartialEq)]
@@ -36,7 +31,7 @@ impl SensorData {
     pub fn update(&mut self, raw_value: f32, current_time_ms: u32) {
         match self.state {
             SensorState::SensorError | SensorState::Uninitialized => {
-                println!("lel");
+                // Debug: sensor not initialized or in error state
                 return;
             }
             SensorState::Event | SensorState::Normal => {
