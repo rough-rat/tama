@@ -4,6 +4,7 @@ use embedded_graphics::{
     prelude::{DrawTarget, Point, RgbColor},
     text::{Alignment, Text},
 };
+use heapless::vec;
 
 use crate::{
     consts, scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene}
@@ -21,7 +22,7 @@ const TEST_ENTRIES: &[TestEntry] = &[
     TestEntry { name: "agressively rubbing the rat...", delay_ms: 1200 },
 ];
 
-const FINAL_DELAY_MS: u32 = 2000;
+const FINAL_DELAY_MS: u32 = 3000;
 
 pub struct SelfTestScene {
     elapsed_ms: u32,
@@ -39,9 +40,24 @@ impl SelfTestScene {
     }
 }
 
+fn get_music_samples() -> heapless::Vec<(u32, u32), 10> {
+    let frequencies  =[293, 329, 349, 329, 293, 261, 261, 261, 261, 261];
+
+    // build a heapless Vec of (frequency, duration_ms) pairs; capacity 16 is enough for 15 entries
+    let mut samples: heapless::Vec<(u32, u32), 10> = heapless::Vec::new();
+    for &f in frequencies.iter() {
+        // use a fixed duration per note (adjust as needed)
+        let _ = samples.push((f, 50));
+    }
+
+    samples
+}
+
+static mut notes_played: u32 = 0;
+
+
 impl Scene for SelfTestScene {
     fn update(&mut self, _ctx: &mut crate::engine::Context) -> UpdateResult {
-        // Simulate time passing (assuming ~60 FPS, ~16ms per frame)
         self.elapsed_ms += 32;
         
         // Check if current test is complete
@@ -53,10 +69,25 @@ impl Scene for SelfTestScene {
                 // Move to next test
                 self.current_test += 1;
                 self.test_start_time = self.elapsed_ms;
+
+                _ctx.output.play_tone(230, 32); // Play beep on test completion
             }
         } else {
             // All tests completed, wait for final delay then transition
             let test_elapsed = self.elapsed_ms - self.test_start_time;
+
+            let samples = get_music_samples();
+
+            unsafe{
+                _ctx.output.play_tone(samples[(notes_played/3) as usize].0, samples[(notes_played/3) as usize].1);
+                notes_played += 1;
+
+                if notes_played >= (samples.len() as u32)*3 {
+                    return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
+                }
+            }
+
+
             if test_elapsed >= FINAL_DELAY_MS {
                 return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
             }

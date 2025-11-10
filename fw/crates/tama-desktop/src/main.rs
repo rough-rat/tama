@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use embedded_graphics::prelude::Size;
 use embedded_graphics_simulator::sdl2::Keycode;
 use embedded_graphics_simulator::{
     OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
+use tama_core::buzzer::BuzzerTrait;
 use tama_core::consts;
 use tama_core::engine::Engine;
 use tama_core::input::{Button, ButtonState};
@@ -12,8 +14,9 @@ use tama_core::input::{Button, ButtonState};
 use tama_core::input::SensorType;
 
 mod log;
+mod buzzer;
 
-fn handle_simulator_events(engine: &mut Engine, window: &mut Window, button_pressed: &mut HashMap<Button, bool>) -> bool {
+fn handle_simulator_events<B: BuzzerTrait>(engine: &mut Engine<B>, window: &mut Window, button_pressed: &mut HashMap<Button, bool>) -> bool {
     // there's a 100% a better way to handle input but idk, this is just for testing
         for (button, pressed) in button_pressed.iter() {
             engine.input_mut().set_button(
@@ -74,7 +77,7 @@ fn handle_simulator_events(engine: &mut Engine, window: &mut Window, button_pres
 
 }
 
-fn generate_mock_hw_data(engine: &mut Engine) {
+fn generate_mock_hw_data<B: BuzzerTrait>(engine: &mut Engine<B>) {
     // generate some mock sensor data for testing
     let time_ms = 0; // TODO: get actual time
     engine.input_mut().update_sensor(SensorType::LightSensor, 0.5, time_ms);
@@ -83,13 +86,17 @@ fn generate_mock_hw_data(engine: &mut Engine) {
 }
 
 fn main() -> anyhow::Result<()> {
+    // Create the desktop buzzer (handles audio asynchronously)
+    let buzzer = buzzer::DesktopBuzzer::new();
+    
+
     let mut display =
         SimulatorDisplay::<consts::ColorType>::new(Size::new(consts::WIDTH, consts::HEIGHT));
     let settings = OutputSettingsBuilder::new().scale(2).pixel_spacing(0).build();
 
     let mut window = Window::new("tama-desktop", &settings);
     window.set_max_fps(30);
-    let mut engine = Engine::new();
+    let mut engine = Engine::with_buzzer(buzzer);
     let mut button_pressed: HashMap<Button, bool> = HashMap::new();
 
     'running: loop {
