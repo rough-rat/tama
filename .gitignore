@@ -38,3 +38,8 @@ fp-info-cache
 spam/**
 
 *.lck
+
+.embuild
+.vscode
+target
+Cargo.lock
