@@ -12,11 +12,14 @@ use mipidsi::{
     Builder,
 };
 use tama_core::engine::Engine;
+use tama_core::input::{Button, ButtonState};
 use embedded_graphics::{
     prelude::*,
     pixelcolor::Rgb565,
     primitives::Rectangle,
 };
+use std::sync::{Arc, Mutex, Condvar};
+use std::thread;
 
 // Simple framebuffer that implements DrawTarget
 struct Framebuffer {
@@ -34,6 +37,36 @@ impl Framebuffer {
     
     fn iter(&self) -> impl Iterator<Item = Rgb565> + '_ {
         self.data.iter().copied()
+    }
+}
+
+// Thread-safe framebuffer wrapper for IPC between cores
+struct SharedFramebuffer {
+    framebuffer: Arc<Mutex<Framebuffer>>,
+    frame_ready: Arc<(Mutex<bool>, Condvar)>,
+}
+
+impl SharedFramebuffer {
+    fn new(width: u32, height: u32) -> Self {
+        Self {
+            framebuffer: Arc::new(Mutex::new(Framebuffer::new(width, height))),
+            frame_ready: Arc::new((Mutex::new(false), Condvar::new())),
+        }
+    }
+    
+    fn clone_for_transfer(&self) -> (Arc<Mutex<Framebuffer>>, Arc<(Mutex<bool>, Condvar)>) {
+        (Arc::clone(&self.framebuffer), Arc::clone(&self.frame_ready))
+    }
+    
+    fn lock(&self) -> std::sync::MutexGuard<Framebuffer> {
+        self.framebuffer.lock().unwrap()
+    }
+    
+    fn signal_frame_ready(&self) {
+        let (lock, cvar) = &*self.frame_ready;
+        let mut ready = lock.lock().unwrap();
+        *ready = true;
+        cvar.notify_one();
     }
 }
 
@@ -81,10 +114,15 @@ fn main() {
 
     let peripherals = Peripherals::take().unwrap();
 
+    // Configure button input (simple test - will be refactored later)
+    let button_pin = peripherals.pins.gpio0;
+    let button = PinDriver::input(button_pin).unwrap();
+    log::info!("Button configured on GPIO0");
+
     // Configure SPI pins
     let sclk = peripherals.pins.gpio12; // SPI Clock
     let sdo = peripherals.pins.gpio14;  // SPI MOSI (Data Out)
-    let sdi = peripherals.pins.gpio0;   // SPI MISO (not used for display)
+    let sdi = peripherals.pins.gpio48;   // SPI MISO (not used for display)
     let cs = peripherals.pins.gpio5;    // Chip Select
 
     // Display control pins
@@ -124,32 +162,10 @@ fn main() {
     let rst_pin = PinDriver::output(rst).unwrap();
     let mut backlight_pin = PinDriver::output(backlight).unwrap();
 
-    log::info!("Initializing display...");
+    log::info!("Preparing display hardware...");
 
     // Turn on backlight
     backlight_pin.set_high().unwrap();
-
-    // Create display interface with heap-allocated buffer for better performance
-    // Larger buffer = fewer SPI transactions = faster updates
-    // Using heap allocation allows for much larger buffers without stack overflow
-    // Full frame buffer would be 240*280*2 = 134,400 bytes
-    let mut buffer = vec![0u8; 32768].into_boxed_slice(); // 64 KB buffer on heap
-    let di = SpiInterface::new(spi_device, dc_pin, &mut *buffer);
-
-    // Initialize the display
-    // ST7789 240x280 display with 90-degree rotation
-    // The physical panel is 240x280, controller supports 240x320
-    // After 90-degree rotation: appears as 280x240 to the application
-    let mut display = Builder::new(ST7789, di)
-        .display_size(240, 280)  // Physical panel dimensions
-        .display_offset(0, 20)   // ST7789 controller offset for 240x280 panels
-        .orientation(Orientation::new().rotate(Rotation::Deg0))
-        .invert_colors(ColorInversion::Inverted)
-        .reset_pin(rst_pin)
-        .init(&mut FreeRtos)
-        .unwrap();
-
-    log::info!("Display initialized successfully!");
 
     // // Test display with Hello World
     // use embedded_graphics::{
@@ -189,41 +205,128 @@ fn main() {
 
     // Allocate framebuffer on heap for double buffering
     // 280x240 pixels * 2 bytes per pixel (RGB565) = 134,400 bytes
-    log::info!("Allocating framebuffer (134,400 bytes)...");
-    let mut framebuffer = Framebuffer::new(280, 240);
-    log::info!("Framebuffer allocated successfully");
+    log::info!("Allocating shared framebuffer (134,400 bytes)...");
+    let shared_fb = SharedFramebuffer::new(240, 280);
+    log::info!("Shared framebuffer allocated successfully");
+
+    // Clone Arc references for the display transfer thread (Core 1)
+    let (fb_arc, frame_ready_arc) = shared_fb.clone_for_transfer();
+    
+    // Spawn display transfer thread on Core 1
+    log::info!("Spawning display transfer thread...");
+    
+    thread::Builder::new()
+        .name("display_transfer".to_string())
+        .stack_size(16384) // 16KB stack for display thread (needs space for display buffer)
+        .spawn(move || {
+            log::info!("Display transfer thread started - initializing display...");
+            
+            // Create display interface with heap-allocated buffer
+            // This needs to be created in this thread so lifetimes work correctly
+            let mut buffer = vec![0u8; 65535].into_boxed_slice(); // 64 KB buffer on heap
+            let di = SpiInterface::new(spi_device, dc_pin, &mut *buffer);
+
+            // Initialize the display in this thread
+            let mut display = Builder::new(ST7789, di)
+                .display_size(240, 280)
+                .display_offset(0, 20)
+                .orientation(Orientation::new().rotate(Rotation::Deg0))
+                .invert_colors(ColorInversion::Inverted)
+                .reset_pin(rst_pin)
+                .init(&mut FreeRtos)
+                .unwrap();
+
+            log::info!("Display initialized successfully in transfer thread!");
+            
+            let (ready_lock, cvar) = &*frame_ready_arc;
+            let mut frame_count = 0u32;
+            
+            loop {
+                // Wait for frame ready signal from Core 0
+                let mut ready = ready_lock.lock().unwrap();
+                while !*ready {
+                    ready = cvar.wait(ready).unwrap();
+                }
+                *ready = false;
+                drop(ready); // Release lock before doing transfer
+                
+                if frame_count % 30 == 0 {
+                    log::info!("Transfer thread: Transferring frame {}...", frame_count);
+                }
+                
+                // Lock framebuffer and transfer to display
+                let fb = fb_arc.lock().unwrap();
+                let bounding_box = Rectangle::new(Point::zero(), fb.size());
+                
+                log::trace!("Transfer thread: Transfer start");
+                if let Err(e) = display.fill_contiguous(&bounding_box, fb.iter()) {
+                    log::error!("Transfer thread: Display transfer error: {:?}", e);
+                }
+                log::trace!("Transfer thread: Transfer complete");
+                
+                frame_count = frame_count.wrapping_add(1);
+            }
+        })
+        .expect("Failed to spawn display transfer thread");
 
     // Initialize the game engine
     let mut engine = Engine::new();
-    log::info!("Engine initialized");
+    log::info!("Engine initialized on Core 0");
 
     let mut frame_count = 0u32;
+    let mut button_pressed = false; // Track button state for edge detection
     
-    // Main game loop
+    // Main game loop on Core 0 - Rendering only
+    log::info!("Starting main game loop on Core 0...");
     loop {
+        // Simple button handling (will be refactored later)
+        // GPIO0 is pulled high, button press pulls it low
+        let button_is_low = button.is_low();
+        
+        if button_is_low && !button_pressed {
+            // Button just pressed
+            log::info!("Button A pressed");
+            engine.input_mut().set_button(Button::A, ButtonState::JustPressed);
+            engine.input_mut().set_button(Button::Up, ButtonState::JustPressed);
+
+            button_pressed = true;
+        } else if button_is_low && button_pressed {
+            // Button held
+            engine.input_mut().set_button(Button::A, ButtonState::Pressed);
+            engine.input_mut().set_button(Button::Up, ButtonState::Pressed);
+        } else if !button_is_low && button_pressed {
+            // Button just released
+            log::info!("Button A released");
+            engine.input_mut().set_button(Button::A, ButtonState::JustReleased);
+            engine.input_mut().set_button(Button::Up, ButtonState::JustReleased);
+
+            button_pressed = false;
+        } else {
+            // Button not pressed
+            engine.input_mut().set_button(Button::A, ButtonState::Released);
+            engine.input_mut().set_button(Button::Up, ButtonState::Released);
+        }
+        
         // Update game state
-        log::info!("Engine start");
+        log::trace!("Core 0: Engine update");
         engine.update();
 
         if frame_count % 30 == 0 {
-            log::info!("Rendering frame {}...", frame_count);
+            log::info!("Core 0: Rendering frame {}...", frame_count);
         }
         
-        // Render to framebuffer (fast - all in RAM)
-        log::info!("Render start");
-
-        if let Err(e) = engine.render(&mut framebuffer) {
-            log::error!("Render error: {:?}", e);
-        }
+        // Render to shared framebuffer (fast - all in RAM)
+        log::trace!("Core 0: Render start");
+        {
+            let mut fb = shared_fb.lock();
+            if let Err(e) = engine.render(&mut *fb) {
+                log::error!("Core 0: Render error: {:?}", e);
+            }
+        } // Lock released here
         
-        // Transfer framebuffer to display (single DMA transfer)
-        let bounding_box = Rectangle::new(Point::zero(), framebuffer.size());
-
-        log::info!("Transfer start");
-        if let Err(e) = display.fill_contiguous(&bounding_box, framebuffer.iter()) {
-            log::error!("Display transfer error: {:?}", e);
-        }
-        log::info!("Transfer complete");
+        // Signal Core 1 that frame is ready for transfer
+        log::trace!("Core 0: Signaling frame ready");
+        shared_fb.signal_frame_ready();
         
         frame_count = frame_count.wrapping_add(1);
         
