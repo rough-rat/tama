@@ -1,6 +1,6 @@
 use embedded_graphics::{
     Drawable as _,
-    mono_font::{MonoTextStyleBuilder, ascii::{FONT_4X6, FONT_8X13}},
+    mono_font::{MonoTextStyleBuilder, ascii::{FONT_8X13, FONT_10X20}},
     prelude::{DrawTarget, Point, RgbColor},
     text::{Alignment, Text},
 };
@@ -19,7 +19,7 @@ const TEST_ENTRIES: &[TestEntry] = &[
     TestEntry { name: "init display...", delay_ms: 300 },
     TestEntry { name: "init thermometer...", delay_ms: 100 },
     TestEntry { name: "calibrating light sensor...", delay_ms: 400 },
-    TestEntry { name: "agressively rubbing the rat...", delay_ms: 1200 },
+    TestEntry { name: "rubbing the rat...", delay_ms: 1200 },
 ];
 
 const FINAL_DELAY_MS: u32 = 3000;
@@ -104,7 +104,7 @@ impl Scene for SelfTestScene {
         target.clear(consts::ColorType::BLACK)?;
 
         let text_style = MonoTextStyleBuilder::new()
-            .font(&FONT_4X6)
+            .font(&FONT_8X13)
             .text_color(consts::ColorType::RED)
             .build();
 
@@ -148,7 +148,7 @@ impl Scene for SelfTestScene {
         // If all tests are complete, show "Rough Rat" in larger font
         if self.current_test >= TEST_ENTRIES.len() {
             let large_text_style = MonoTextStyleBuilder::new()
-                .font(&FONT_8X13)
+                .font(&FONT_10X20)
                 .text_color(consts::ColorType::RED)
                 .build();
 
