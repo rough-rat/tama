@@ -139,7 +139,7 @@ fn main() {
         sclk,
         sdo,
         Some(sdi),
-        &SpiDriverConfig::new().dma(Dma::Auto(32768)), // Enable DMA with 4KB buffer
+        &SpiDriverConfig::new().dma(Dma::Auto(32768)), // Enable DMA
     )
     .unwrap();
 
@@ -167,42 +167,6 @@ fn main() {
     // Turn on backlight
     backlight_pin.set_high().unwrap();
 
-    // // Test display with Hello World
-    // use embedded_graphics::{
-    //     mono_font::{ascii::FONT_10X20, MonoTextStyle},
-    //     pixelcolor::Rgb565,
-    //     prelude::*,
-    //     primitives::{Circle, PrimitiveStyle, Rectangle},
-    //     text::Text,
-    // };
-
-    // log::info!("Drawing Hello World test...");
-    // display.clear(Rgb565::BLACK).unwrap();
-    
-    // // Draw a filled rectangle as background
-    // Rectangle::new(Point::new(10, 10), Size::new(220, 80))
-    //     .into_styled(PrimitiveStyle::with_fill(Rgb565::BLUE))
-    //     .draw(&mut display)
-    //     .unwrap();
-
-    // // Draw text
-    // let text_style = MonoTextStyle::new(&FONT_10X20, Rgb565::WHITE);
-    // Text::new("Hello, World!", Point::new(20, 40), text_style)
-    //     .draw(&mut display)
-    //     .unwrap();
-    // Text::new("Display Test", Point::new(20, 65), text_style)
-    //     .draw(&mut display)
-    //     .unwrap();
-
-    // // Draw a circle
-    // Circle::new(Point::new(95, 120), 60)
-    //     .into_styled(PrimitiveStyle::with_stroke(Rgb565::GREEN, 3))
-    //     .draw(&mut display)
-    //     .unwrap();
-
-    // log::info!("Hello World drawn, waiting 3 seconds...");
-    // FreeRtos::delay_ms(3000);
-
     // Allocate framebuffer on heap for double buffering
     // 280x240 pixels * 2 bytes per pixel (RGB565) = 134,400 bytes
     log::info!("Allocating shared framebuffer (134,400 bytes)...");
@@ -217,12 +181,11 @@ fn main() {
     
     thread::Builder::new()
         .name("display_transfer".to_string())
-        .stack_size(16384) // 16KB stack for display thread (needs space for display buffer)
+        .stack_size(3092) // 16KB stack for display thread (needs space for display buffer)
         .spawn(move || {
             log::info!("Display transfer thread started - initializing display...");
             
             // Create display interface with heap-allocated buffer
-            // This needs to be created in this thread so lifetimes work correctly
             let mut buffer = vec![0u8; 65535].into_boxed_slice(); // 64 KB buffer on heap
             let di = SpiInterface::new(spi_device, dc_pin, &mut *buffer);
 
@@ -250,19 +213,43 @@ fn main() {
                 *ready = false;
                 drop(ready); // Release lock before doing transfer
                 
-                if frame_count % 30 == 0 {
+                if frame_count % 120 == 0 {
                     log::info!("Transfer thread: Transferring frame {}...", frame_count);
+                    
+                    // Check stack usage for display thread
+                    unsafe {
+                        let current_task = esp_idf_svc::sys::xTaskGetCurrentTaskHandle();
+                        let stack_high_water_mark = esp_idf_svc::sys::uxTaskGetStackHighWaterMark(current_task);
+                        log::info!("Display thread stack high water mark: {} bytes remaining", stack_high_water_mark * 4);
+                    }
                 }
+                
+                // Measure time to acquire lock and transfer
+                let lock_start = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
                 
                 // Lock framebuffer and transfer to display
                 let fb = fb_arc.lock().unwrap();
+                let lock_acquired = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
                 let bounding_box = Rectangle::new(Point::zero(), fb.size());
                 
                 log::trace!("Transfer thread: Transfer start");
+                let transfer_start = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
+                
                 if let Err(e) = display.fill_contiguous(&bounding_box, fb.iter()) {
                     log::error!("Transfer thread: Display transfer error: {:?}", e);
                 }
+                
+                let transfer_end = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
                 log::trace!("Transfer thread: Transfer complete");
+                
+                // Log timing every 30 frames
+                if frame_count % 30 == 0 {
+                    let lock_wait_us = lock_acquired - lock_start;
+                    let transfer_us = transfer_end - transfer_start;
+                    let total_us = transfer_end - lock_start;
+                    log::info!("Frame timing - Lock wait: {} us, Transfer: {} us ({} ms), Total: {} us ({} ms)", 
+                        lock_wait_us, transfer_us, transfer_us / 1000, total_us, total_us / 1000);
+                }
                 
                 frame_count = frame_count.wrapping_add(1);
             }
@@ -276,8 +263,13 @@ fn main() {
     let mut frame_count = 0u32;
     let mut button_pressed = false; // Track button state for edge detection
     
+    // Setup for constant FPS timing using vTaskDelayUntil
+    const TARGET_FPS: u32 = 30;
+    const FRAME_TIME_MS: u32 = 1000 / TARGET_FPS; // 33ms for 30 FPS
+    let mut last_wake_time = unsafe { esp_idf_svc::sys::xTaskGetTickCount() };
+    
     // Main game loop on Core 0 - Rendering only
-    log::info!("Starting main game loop on Core 0...");
+    log::info!("Starting main game loop on Core 0 with target {} FPS...", TARGET_FPS);
     loop {
         // Simple button handling (will be refactored later)
         // GPIO0 is pulled high, button press pulls it low
@@ -309,18 +301,42 @@ fn main() {
         
         // Update game state
         log::trace!("Core 0: Engine update");
+        let update_start = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
         engine.update();
+        let update_end = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
 
-        if frame_count % 30 == 0 {
-            log::info!("Core 0: Rendering frame {}...", frame_count);
-        }
-        
         // Render to shared framebuffer (fast - all in RAM)
         log::trace!("Core 0: Render start");
+        let render_start = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
+        let lock_wait_start = render_start;
+        
         {
             let mut fb = shared_fb.lock();
+            let lock_acquired = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
+            
             if let Err(e) = engine.render(&mut *fb) {
                 log::error!("Core 0: Render error: {:?}", e);
+            }
+            
+            let render_end = unsafe { esp_idf_svc::sys::esp_timer_get_time() };
+            
+            // Log timing every 30 frames
+            if frame_count % 30 == 0 {
+                let update_us = update_end - update_start;
+                let lock_wait_us = lock_acquired - lock_wait_start;
+                let render_us = render_end - lock_acquired;
+                let total_frame_us = render_end - update_start;
+                
+                log::info!("Core 0: Rendering frame {}...", frame_count);
+                log::info!("Core 0 timing - Update: {} us, Lock wait: {} us, Render: {} us, Total: {} us ({} ms)", 
+                    update_us, lock_wait_us, render_us, total_frame_us, total_frame_us / 1000);
+                
+                // Check stack usage for main thread
+                unsafe {
+                    let current_task = esp_idf_svc::sys::xTaskGetCurrentTaskHandle();
+                    let stack_high_water_mark = esp_idf_svc::sys::uxTaskGetStackHighWaterMark(current_task);
+                    log::info!("Main thread stack high water mark: {} bytes remaining", stack_high_water_mark * 4);
+                }
             }
         } // Lock released here
         
@@ -330,7 +346,23 @@ fn main() {
         
         frame_count = frame_count.wrapping_add(1);
         
-        // Frame delay (~30 FPS)
-        // FreeRtos::delay_ms(33);
+        // Constant FPS timing using vTaskDelayUntil
+        // This ensures consistent frame timing regardless of execution time
+        // NOTE: If display transfer on Core 1 is slower than rendering, the framebuffer
+        // lock above will block Core 0 until transfer completes. This prevents tearing
+        // but may cause frame drops if transfer takes longer than FRAME_TIME_MS.
+        // To avoid this, consider double buffering or making the lock non-blocking.
+        
+        // Convert milliseconds to FreeRTOS ticks
+        // FreeRTOS tick rate is typically 100 Hz (10ms per tick) or 1000 Hz (1ms per tick)
+        // We use pdMS_TO_TICKS macro equivalent: (ms * configTICK_RATE_HZ) / 1000
+        let ticks_to_wait = (FRAME_TIME_MS * esp_idf_svc::sys::configTICK_RATE_HZ) / 1000;
+        
+        unsafe {
+            esp_idf_svc::sys::xTaskDelayUntil(
+                &mut last_wake_time as *mut _,
+                ticks_to_wait,
+            );
+        }
     }
 }
