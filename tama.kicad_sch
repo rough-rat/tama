@@ -9376,7 +9376,7 @@
 		(uuid "2a747a8c-7396-455b-8f53-f8246f8ca367")
 	)
 	(label "DISP_RST"
-		(at 99.06 190.5 180)
+		(at 99.06 182.88 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -9486,7 +9486,7 @@
 		(uuid "56636567-1cf8-498f-a473-779edbd351ff")
 	)
 	(label "DISP_CS"
-		(at 386.08 72.39 180)
+		(at 386.08 77.47 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -9496,7 +9496,7 @@
 		(uuid "59a23336-c054-4747-a108-c822857182b3")
 	)
 	(label "DISP_CS"
-		(at 99.06 182.88 180)
+		(at 99.06 190.5 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -9676,7 +9676,7 @@
 		(uuid "9d3349b0-02d2-4d20-b743-b89924adfb83")
 	)
 	(label "DISP_RST"
-		(at 386.08 77.47 180)
+		(at 386.08 72.39 180)
 		(effects
 			(font
 				(size 1.27 1.27)

@@ -119,16 +119,33 @@ fn main() {
     let button = PinDriver::input(button_pin).unwrap();
     log::info!("Button configured on GPIO0");
 
+    // Set GPIO5 high before configuring SPI
+    let mut gpio5 = PinDriver::output(peripherals.pins.gpio5).unwrap();
+    gpio5.set_high().unwrap();
+    log::info!("GPIO5 set high");
+
     // Configure SPI pins
-    let sclk = peripherals.pins.gpio12; // SPI Clock
-    let sdo = peripherals.pins.gpio14;  // SPI MOSI (Data Out)
-    let sdi = peripherals.pins.gpio48;   // SPI MISO (not used for display)
-    let cs = peripherals.pins.gpio5;    // Chip Select
+    let sclk = peripherals.pins.gpio37; // SPI Clock
+    let sdo = peripherals.pins.gpio38;  // SPI MOSI (Data Out)
+    let sdi = peripherals.pins.gpio14;   // SPI MISO (not used for display)
+    let cs = peripherals.pins.gpio42;    // Chip Select
 
     // Display control pins
-    let dc = peripherals.pins.gpio4;       // Data/Command
-    let rst = peripherals.pins.gpio3;      // Reset
-    let backlight = peripherals.pins.gpio7; // Backlight control
+    let dc = peripherals.pins.gpio41;       // Data/Command
+    let rst = peripherals.pins.gpio39;      // Reset
+    let backlight = peripherals.pins.gpio48; // Backlight control
+
+
+    // // Configure SPI pins
+    // let sclk = peripherals.pins.gpio12; // SPI Clock
+    // let sdo = peripherals.pins.gpio14;  // SPI MOSI (Data Out)
+    // let sdi = peripherals.pins.gpio48;   // SPI MISO (not used for display)
+    // let cs = peripherals.pins.gpio5;    // Chip Select
+
+    // // Display control pins
+    // let dc = peripherals.pins.gpio4;       // Data/Command
+    // let rst = peripherals.pins.gpio3;      // Reset
+    // let backlight = peripherals.pins.gpio7; // Backlight control
 
     log::info!("Configuring SPI with DMA...");
 
