@@ -1,10 +1,14 @@
+pub mod adc_bus;
 mod button_driver;
 mod display_driver;
+mod power_control;
 mod sensor_driver;
 pub mod sensors_i2c;
 
+pub use adc_bus::AdcBus;
 pub use button_driver::ButtonDriver;
 pub use display_driver::DisplayDriver;
+pub use power_control::{PowerControl, PowerPeripherals};
 pub use sensor_driver::SensorDriver;
 
 use esp_idf_hal::adc;
@@ -14,10 +18,11 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi;
 
 pub struct SystemPeripherals<SPI, BacklightChannel, BacklightTimer> {
+    pub adc1: adc::ADC1,
     pub buttons: ButtonPeripherals,
     pub display: DisplaySpiPeripherals<SPI, BacklightChannel, BacklightTimer>,
+    pub power: PowerPeripherals,
     pub sensors: SensorPeripherals,
-    pub gpio5: AnyOutputPin, // Power/enable pin that needs to be set high
 }
 
 /// Button GPIO pins
@@ -32,10 +37,9 @@ pub struct ButtonPeripherals {
     pub btn_boot: AnyInputPin, // GPIO0 (BOOT button)
 }
 
-/// Sensor peripherals for ADC and I2C sensors
+/// Sensor peripherals for light, mic, and I2C sensors
+/// Note: Battery is handled by PowerPeripherals
 pub struct SensorPeripherals {
-    pub adc1: adc::ADC1,
-    pub battery_pin: esp_idf_hal::gpio::Gpio4,     // GPIO4 - Battery voltage with 0.5 divider
     pub light_sensor_pin: esp_idf_hal::gpio::Gpio2, // GPIO2 - Light sensor
     pub light_sensor_enable: AnyOutputPin,          // GPIO40 - Light sensor enable
     pub mic_pin: esp_idf_hal::gpio::Gpio1,         // GPIO1 - Microphone
@@ -72,6 +76,7 @@ impl SystemPeripherals<spi::SPI2, esp_idf_hal::ledc::CHANNEL0, esp_idf_hal::ledc
         let peripherals = Peripherals::take().unwrap();
 
         SystemPeripherals {
+            adc1: peripherals.adc1,
             buttons: ButtonPeripherals {
                 btn_a: peripherals.pins.gpio15.into(),
                 btn_b: peripherals.pins.gpio7.into(),
@@ -81,10 +86,11 @@ impl SystemPeripherals<spi::SPI2, esp_idf_hal::ledc::CHANNEL0, esp_idf_hal::ledc
                 btn_right: peripherals.pins.gpio16.into(),
                 btn_boot: peripherals.pins.gpio0.into(),
             },
-            gpio5: peripherals.pins.gpio5.into(),
-            sensors: SensorPeripherals {
-                adc1: peripherals.adc1,
+            power: PowerPeripherals {
                 battery_pin: peripherals.pins.gpio4,
+                peripheral_power_pin: peripherals.pins.gpio5.into(),
+            },
+            sensors: SensorPeripherals {
                 light_sensor_pin: peripherals.pins.gpio2,
                 light_sensor_enable: peripherals.pins.gpio40.into(),
                 mic_pin: peripherals.pins.gpio1,

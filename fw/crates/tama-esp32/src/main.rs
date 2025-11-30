@@ -1,12 +1,10 @@
-use esp_idf_hal::gpio::PinDriver;
 use tama_core::engine::Engine;
+use tama_core::input::SensorType;
 
 mod peripherals;
 
-use peripherals::{ButtonDriver, DisplayDriver, SensorDriver, SystemPeripherals};
-
-use tama_core::input::SensorType;
-
+use peripherals::{AdcBus, ButtonDriver, DisplayDriver, PowerControl, SensorDriver, SystemPeripherals};
+use peripherals::adc_bus::AdcBusConfig;
 
 fn main() {
     // It is necessary to call this function once. Otherwise, some patches to the runtime
@@ -27,21 +25,25 @@ fn main() {
 
     let peripherals = SystemPeripherals::take();
 
+    // Initialize shared ADC bus
+    let adc_bus = AdcBus::new(peripherals.adc1, AdcBusConfig::default());
+    
+    // Initialize power controller (battery monitoring, peripheral power)
+    let mut power_control = PowerControl::new(&adc_bus, peripherals.power);
+    
+    // Enable peripheral power (GPIO5 load switch) before accessing display
+    power_control.set_peripheral_power(true);
+
     // Initialize button driver
     let mut button_driver = ButtonDriver::new(peripherals.buttons);
     log::info!("Button driver configured");
 
     // Initialize sensor driver
-    let mut sensor_driver = SensorDriver::new(peripherals.sensors);
+    let mut sensor_driver = SensorDriver::new(&adc_bus, peripherals.sensors);
     log::info!("Sensor driver configured");
 
     // Scan I2C bus for connected sensors
     log::info!("{}", sensor_driver.scan_i2c_rail_report());
-
-    // Set GPIO5 high before configuring SPI
-    let mut gpio5 = PinDriver::output(peripherals.gpio5).unwrap();
-    gpio5.set_high().unwrap();
-    log::info!("GPIO5 set high");
 
     // Initialize display driver (spawns transfer thread internally)
     let display_driver = DisplayDriver::new(peripherals.display);
@@ -66,10 +68,13 @@ fn main() {
         button_driver.update();
         button_driver.apply_to_input(engine.input_mut());
         
+        // Update power state (battery monitoring)
+        power_control.update();
+        
         // Update sensor readings
         sensor_driver.update();
         let current_time_ms = (unsafe { esp_idf_svc::sys::esp_timer_get_time() } / 1000) as u32;
-        sensor_driver.apply_to_input(engine.input_mut(), current_time_ms);
+        sensor_driver.apply_to_input(engine.input_mut(), &power_control, current_time_ms);
         
         // Update game state
         log::trace!("Core 0: Engine update");
