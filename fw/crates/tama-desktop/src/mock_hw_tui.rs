@@ -20,7 +20,7 @@ use ratatui::{
 // Shared sensor state - matches tama_core::input::SensorType enum
 #[derive(Clone, Debug)]
 pub struct MockSensorState {
-    pub battery_voltage: f32,  // Volts (2.5 - 4.2)
+    pub battery_level: f32,  // Volts (2.5 - 4.2)
     pub temperature: f32,       // Celsius (-40 - 80)
     pub light_level: f32,       // 0.0 - 1.0
     pub accelerometer: f32,     // Movement intensity (0.0 - 1.0)
@@ -30,7 +30,7 @@ pub struct MockSensorState {
 impl Default for MockSensorState {
     fn default() -> Self {
         Self {
-            battery_voltage: 3.7,
+            battery_level: 3.7,
             temperature: 25.0,
             light_level: 0.5,
             accelerometer: 0.0,
@@ -118,7 +118,7 @@ impl TuiState {
         let delta = if increase { 1.0 } else { -1.0 };
 
         match self.selected_sensor {
-            0 => state.battery_voltage = (state.battery_voltage + delta * 0.1).clamp(2.5, 4.2),
+            0 => state.battery_level = (state.battery_level + delta * 0.1).clamp(2.5, 4.2),
             1 => state.temperature = (state.temperature + delta).clamp(-40.0, 80.0),
             2 => state.light_level = (state.light_level + delta * 0.1).clamp(0.0, 1.0),
             3 => state.accelerometer = (state.accelerometer + delta * 0.1).clamp(0.0, 1.0),
@@ -171,7 +171,7 @@ pub struct MockHwTui {
 }
 
 impl MockHwTui {
-    pub fn new() -> Result<Self, log::SetLoggerError> {
+    pub fn new() -> Result<Self, anyhow::Error> {
         let sensor_state = Arc::new(Mutex::new(MockSensorState::default()));
         let (tx, rx) = channel();
 
@@ -184,10 +184,13 @@ impl MockHwTui {
             }
         });
 
-        // Initialize the logger
+        // Try to initialize the logger, but don't fail if one is already set
+        // (log_capture may have set one already)
         let logger = TuiLogger::new(tx.clone());
-        log::set_boxed_logger(Box::new(logger))
-            .map(|()| log::set_max_level(LevelFilter::Trace))?;
+        if log::set_boxed_logger(Box::new(logger)).is_ok() {
+            log::set_max_level(LevelFilter::Trace);
+        }
+        // If logger was already set, that's fine - logs will go to log_capture instead
 
         Ok(Self {
             sensor_state,
@@ -326,7 +329,7 @@ fn render_sensors(f: &mut Frame, area: Rect, state: &TuiState) {
 
     // Matches tama_core::input::SensorType enum order
     let sensors = vec![
-        ("Battery Voltage", sensor_state.battery_voltage, "V", 2.5, 4.2),
+        ("Battery Voltage", sensor_state.battery_level, "%", 0.0, 100.0),
         ("Temperature", sensor_state.temperature, "°C", -40.0, 80.0),
         ("Light Level", sensor_state.light_level, "", 0.0, 1.0),
         ("Accelerometer", sensor_state.accelerometer, "", 0.0, 1.0),

@@ -8,10 +8,11 @@ use embedded_graphics_simulator::{
 use tama_core::consts;
 use tama_core::engine::Engine;
 use tama_core::input::{Button, ButtonState};
-
 use tama_core::input::SensorType;
+use tama_core::notice;
 
 mod buzzer;
+mod log_capture;
 mod mock_hw_tui;
 
 fn handle_simulator_events(
@@ -89,7 +90,7 @@ fn generate_mock_hw_data(engine: &mut Engine, tui: &mock_hw_tui::MockHwTui) {
     let sensors = tui.get_sensor_state();
     let time_ms = 0; // TODO: get actual time
     
-    engine.input_mut().update_sensor(SensorType::BatteryVoltage, sensors.battery_voltage, time_ms);
+    engine.input_mut().update_sensor(SensorType::BatteryLevel, sensors.battery_level, time_ms);
     engine.input_mut().update_sensor(SensorType::Thermometer, sensors.temperature, time_ms);
     engine.input_mut().update_sensor(SensorType::LightSensor, sensors.light_level, time_ms);
     engine.input_mut().update_sensor(SensorType::Accelerometer, sensors.accelerometer, time_ms);
@@ -97,13 +98,18 @@ fn generate_mock_hw_data(engine: &mut Engine, tui: &mock_hw_tui::MockHwTui) {
 }
 
 fn main() -> anyhow::Result<()> {
-    // Initialize the Mock Hardware TUI (also sets up the logger)
+    // Initialize log capture system first
+    log_capture::init(log::LevelFilter::Info);
+    
+    notice!("Tama Desktop starting...");
+
+    // Initialize the Mock Hardware TUI
     let tui = mock_hw_tui::MockHwTui::new()?;
-    log::info!("Tama Desktop Simulator started");
+    notice!("Mock hardware TUI initialized");
     
     // Create the desktop buzzer (handles audio asynchronously)
     let buzzer = Box::new(buzzer::DesktopBuzzer::new());
-    log::info!("Audio buzzer initialized");
+    notice!("Audio buzzer initialized");
 
     let mut display =
         SimulatorDisplay::<consts::ColorType>::new(Size::new(consts::WIDTH, consts::HEIGHT));
@@ -114,7 +120,7 @@ fn main() -> anyhow::Result<()> {
     let mut engine = Engine::with_buzzer(buzzer);
     let mut button_pressed: HashMap<Button, bool> = HashMap::new();
     
-    log::info!("Engine and display initialized");
+    notice!("Engine and display initialized");
 
     'running: loop {
         window.update(&display);
@@ -122,9 +128,13 @@ fn main() -> anyhow::Result<()> {
         if !handle_simulator_events(&mut engine, &mut window, &mut button_pressed) {
             log::info!("Simulator window closed");
             break 'running;
-        } //TODO verbose exit handling        
+        }
 
         generate_mock_hw_data(&mut engine, &tui);
+        
+        // Push recent log entries to engine for on-screen display
+        engine.push_log_entries(log_capture::recent_log_entries(16));
+        
         engine.update();
         engine.render(&mut display)?;
     }

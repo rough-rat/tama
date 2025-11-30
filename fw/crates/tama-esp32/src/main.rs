@@ -1,6 +1,8 @@
 use tama_core::engine::Engine;
 use tama_core::input::SensorType;
+use tama_core::notice;
 
+mod log_capture;
 mod peripherals;
 
 use peripherals::{AdcBus, ButtonDriver, DisplayDriver, PowerControl, SensorDriver, SystemPeripherals};
@@ -11,8 +13,10 @@ fn main() {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_svc::sys::link_patches();
 
-    // Bind the log crate to the ESP Logging facilities
-    esp_idf_svc::log::EspLogger::initialize_default();
+    // Initialize log capture system - captures logs to ring buffer for on-screen display
+    log_capture::init(log::LevelFilter::Info);
+
+    notice!("Tama ESP32 booting...");
 
     // Disable the task watchdog timer temporarily while debugging slow rendering
     // This prevents system resets during long-running operations
@@ -27,32 +31,35 @@ fn main() {
 
     // Initialize shared ADC bus
     let adc_bus = AdcBus::new(peripherals.adc1, AdcBusConfig::default());
+    notice!("ADC bus initialized");
     
     // Initialize power controller (battery monitoring, peripheral power)
     let mut power_control = PowerControl::new(&adc_bus, peripherals.power);
+    notice!("Power control initialized");
     
     // Enable peripheral power (GPIO5 load switch) before accessing display
     power_control.set_peripheral_power(true);
 
     // Initialize button driver
     let mut button_driver = ButtonDriver::new(peripherals.buttons);
-    log::info!("Button driver configured");
+    notice!("Button driver configured");
 
     // Initialize sensor driver
     let mut sensor_driver = SensorDriver::new(&adc_bus, peripherals.sensors);
-    log::info!("Sensor driver configured");
+    notice!("Sensor driver configured");
 
     // Scan I2C bus for connected sensors
-    log::info!("{}", sensor_driver.scan_i2c_rail_report());
+    notice!("{}", sensor_driver.scan_i2c_rail_report());
 
     // Initialize display driver (spawns transfer thread internally)
     let display_driver = DisplayDriver::new(peripherals.display);
+    notice!("Display driver initialized");
 
     display_driver.set_backlight(10);
 
     // Initialize the game engine
     let mut engine = Engine::new();
-    log::info!("Engine initialized on Core 0");
+    notice!("Engine initialized");
 
     let mut frame_count = 0u32;
     
@@ -75,6 +82,9 @@ fn main() {
         sensor_driver.update();
         let current_time_ms = (unsafe { esp_idf_svc::sys::esp_timer_get_time() } / 1000) as u32;
         sensor_driver.apply_to_input(engine.input_mut(), &power_control, current_time_ms);
+        
+        // Push recent log entries to engine for on-screen display
+        engine.push_log_entries(log_capture::recent_log_entries(16));
         
         // Update game state
         log::trace!("Core 0: Engine update");

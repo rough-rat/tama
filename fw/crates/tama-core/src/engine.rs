@@ -1,10 +1,11 @@
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use embedded_graphics::{
     prelude::DrawTarget,
 };
 use rand::{SeedableRng, rngs::SmallRng};
 
-use crate::{buzzer::BuzzerTrait, consts, input::Input, output::Output, scenes::{Scene as _, SceneWrapper, UpdateResult, selftest::SelfTestScene}};
+use crate::{buzzer::BuzzerTrait, consts, input::Input, log_buffer::LogEntry, output::Output, scenes::{Scene as _, SceneWrapper, UpdateResult, selftest::SelfTestScene}};
 
 // Default stub buzzer for embedded targets
 pub struct StubBuzzer;
@@ -20,6 +21,8 @@ pub struct Engine {
     buzzer: Box<dyn BuzzerTrait>,
     rng: SmallRng,
     input: Input,
+    /// Log entries for display (updated externally via push_log_entries)
+    log_entries: Vec<LogEntry>,
 }
 
 impl Default for Engine {
@@ -35,6 +38,7 @@ impl Engine {
             buzzer: Box::new(StubBuzzer),
             rng: SmallRng::seed_from_u64(2137),
             input: Input::new(),
+            log_entries: Vec::new(),
         }
     }
 
@@ -44,6 +48,7 @@ impl Engine {
             buzzer,
             rng: SmallRng::seed_from_u64(2137),
             input: Input::new(),
+            log_entries: Vec::new(),
         }
     }
 
@@ -55,8 +60,8 @@ impl Engine {
     }
 
     pub fn update(&mut self) {
-        // Create Context on the fly with references to buzzer
-        let mut context = Context::new(&*self.buzzer);
+        // Create Context on the fly with references to buzzer and log entries
+        let mut context = Context::new(&*self.buzzer, &self.log_entries);
         // Temporarily swap input to avoid borrowing issues
         core::mem::swap(&mut context.input, &mut self.input);
         core::mem::swap(&mut context.rng, &mut self.rng);
@@ -83,20 +88,36 @@ impl Engine {
     pub fn input_mut(&mut self) -> &mut Input {
         &mut self.input
     }
+
+    /// Push log entries for display by scenes.
+    /// 
+    /// This should be called each frame from the platform layer
+    /// with a snapshot of recent log entries.
+    pub fn push_log_entries(&mut self, entries: Vec<LogEntry>) {
+        self.log_entries = entries;
+    }
+
+    /// Get a reference to the current log entries.
+    pub fn log_entries(&self) -> &[LogEntry] {
+        &self.log_entries
+    }
 }
 
 pub struct Context<'a> {
     pub rng: SmallRng,
     pub input: Input,
     pub output: Output<'a>,
+    /// Log entries for display (read-only reference)
+    pub log_entries: &'a [LogEntry],
 }
 
 impl<'a> Context<'a> {
-    fn new(buzzer: &'a dyn BuzzerTrait) -> Self {
+    fn new(buzzer: &'a dyn BuzzerTrait, log_entries: &'a [LogEntry]) -> Self {
         Self {
             rng: SmallRng::seed_from_u64(2137),
             input: Input::new(),
             output: Output::new(buzzer),
+            log_entries,
         }
     }
 }

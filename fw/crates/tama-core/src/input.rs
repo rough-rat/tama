@@ -49,7 +49,7 @@ impl SensorData {
 }
 
 pub enum SensorType {
-    BatteryVoltage = 0,
+    BatteryLevel = 0,
     Thermometer,
     LightSensor,
     Accelerometer,
@@ -118,5 +118,9 @@ impl Input {
     pub fn is_just_pressed(&self, button: Button) -> bool {
         let state = self.buttons[button as usize];
         state == ButtonState::JustPressed
+    }
+
+    pub fn get_sensor_value(&self, sensor_type: SensorType) -> f32 {
+        self.sensors[sensor_type as usize].moving_avg
     }
 }
