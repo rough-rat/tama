@@ -1,3 +1,4 @@
+use tama_core::buzzer::BuzzerTrait;
 use tama_core::engine::Engine;
 use tama_core::input::SensorType;
 use tama_core::notice;
@@ -5,7 +6,7 @@ use tama_core::notice;
 mod log_capture;
 mod peripherals;
 
-use peripherals::{AdcBus, ButtonDriver, DisplayDriver, PowerControl, SensorDriver, SystemPeripherals};
+use peripherals::{AdcBus, ButtonDriver, DisplayDriver, PowerControl, PwmBus, SensorDriver, SystemPeripherals};
 use peripherals::adc_bus::AdcBusConfig;
 
 fn main() {
@@ -29,6 +30,11 @@ fn main() {
 
     let peripherals = SystemPeripherals::take();
 
+    // Initialize PWM bus first - manages both backlight and buzzer PWM
+    // This must be done before display driver initialization
+    let pwm_bus = PwmBus::new(peripherals.pwm);
+    notice!("PWM bus initialized");
+
     // Initialize shared ADC bus
     let adc_bus = AdcBus::new(peripherals.adc1, AdcBusConfig::default());
     notice!("ADC bus initialized");
@@ -51,15 +57,19 @@ fn main() {
     // Scan I2C bus for connected sensors
     notice!("{}", sensor_driver.scan_i2c_rail_report());
 
-    // Initialize display driver (spawns transfer thread internally)
-    let display_driver = DisplayDriver::new(peripherals.display);
+    // Initialize display driver with backlight control from PWM bus
+    let display_driver = DisplayDriver::new(peripherals.display, pwm_bus.backlight());
     notice!("Display driver initialized");
 
     display_driver.set_backlight(10);
 
-    // Initialize the game engine
-    let mut engine = Engine::new();
-    notice!("Engine initialized");
+    // Get buzzer control from PWM bus and create boxed version for engine
+    let buzzer_control = pwm_bus.buzzer();
+    notice!("Buzzer control initialized");
+
+    // Initialize the game engine with buzzer support
+    let mut engine = Engine::with_buzzer(Box::new(buzzer_control));
+    notice!("Engine initialized with buzzer");
 
     let mut frame_count = 0u32;
     

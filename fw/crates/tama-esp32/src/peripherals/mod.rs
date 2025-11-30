@@ -2,6 +2,7 @@ pub mod adc_bus;
 mod button_driver;
 mod display_driver;
 mod power_control;
+pub mod pwm_bus;
 mod sensor_driver;
 pub mod sensors_i2c;
 
@@ -9,6 +10,7 @@ pub use adc_bus::AdcBus;
 pub use button_driver::ButtonDriver;
 pub use display_driver::DisplayDriver;
 pub use power_control::{PowerControl, PowerPeripherals};
+pub use pwm_bus::{PwmBus, PwmPeripherals, BacklightControl};
 pub use sensor_driver::SensorDriver;
 
 use esp_idf_hal::adc;
@@ -17,11 +19,18 @@ use esp_idf_hal::i2c::I2C0;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi;
 
-pub struct SystemPeripherals<SPI, BacklightChannel, BacklightTimer> {
+pub struct SystemPeripherals<SPI> {
     pub adc1: adc::ADC1,
     pub buttons: ButtonPeripherals,
-    pub display: DisplaySpiPeripherals<SPI, BacklightChannel, BacklightTimer>,
+    pub display: DisplaySpiPeripherals<SPI>,
     pub power: PowerPeripherals,
+    pub pwm: PwmPeripherals<
+        esp_idf_hal::ledc::TIMER0,
+        esp_idf_hal::ledc::CHANNEL0,
+        esp_idf_hal::ledc::CHANNEL1,
+        esp_idf_hal::gpio::Gpio48,
+        esp_idf_hal::gpio::Gpio9,
+    >,
     pub sensors: SensorPeripherals,
 }
 
@@ -50,20 +59,13 @@ pub struct SensorPeripherals {
     pub acc_int1: AnyInputPin,                     // GPIO47 - accelerometer interrupt
 }
 
-pub struct BacklightPeripherals<Channel, Timer> {
-    pub pin: AnyOutputPin,
-    pub channel: Channel,
-    pub timer: Timer,
-}
-
-pub struct DisplayControlPeripherals<BacklightChannel, BacklightTimer> {
-    pub backlight: BacklightPeripherals<BacklightChannel, BacklightTimer>,
+pub struct DisplayControlPeripherals {
     pub dc: AnyOutputPin,
     pub rst: AnyOutputPin,
 }
 
-pub struct DisplaySpiPeripherals<SPI, BacklightChannel, BacklightTimer> {
-    pub control: DisplayControlPeripherals<BacklightChannel, BacklightTimer>,
+pub struct DisplaySpiPeripherals<SPI> {
+    pub control: DisplayControlPeripherals,
     pub spi: SPI,
     pub sclk: AnyOutputPin,
     pub sdo: AnyOutputPin,
@@ -71,7 +73,7 @@ pub struct DisplaySpiPeripherals<SPI, BacklightChannel, BacklightTimer> {
     pub cs: AnyOutputPin,
 }
 
-impl SystemPeripherals<spi::SPI2, esp_idf_hal::ledc::CHANNEL0, esp_idf_hal::ledc::TIMER0> {
+impl SystemPeripherals<spi::SPI2> {
     pub fn take() -> Self {
         let peripherals = Peripherals::take().unwrap();
 
@@ -90,6 +92,13 @@ impl SystemPeripherals<spi::SPI2, esp_idf_hal::ledc::CHANNEL0, esp_idf_hal::ledc
                 battery_pin: peripherals.pins.gpio4,
                 peripheral_power_pin: peripherals.pins.gpio5.into(),
             },
+            pwm: PwmPeripherals {
+                timer: peripherals.ledc.timer0,
+                backlight_channel: peripherals.ledc.channel0,
+                backlight_pin: peripherals.pins.gpio48,
+                buzzer_channel: peripherals.ledc.channel1,
+                buzzer_pin: peripherals.pins.gpio9,
+            },
             sensors: SensorPeripherals {
                 light_sensor_pin: peripherals.pins.gpio2,
                 light_sensor_enable: peripherals.pins.gpio40.into(),
@@ -102,11 +111,6 @@ impl SystemPeripherals<spi::SPI2, esp_idf_hal::ledc::CHANNEL0, esp_idf_hal::ledc
             },
             display: DisplaySpiPeripherals {
                 control: DisplayControlPeripherals {
-                    backlight: BacklightPeripherals {
-                        pin: peripherals.pins.gpio48.into(),
-                        channel: peripherals.ledc.channel0,
-                        timer: peripherals.ledc.timer0,
-                    },
                     dc: peripherals.pins.gpio41.into(),
                     rst: peripherals.pins.gpio39.into(),
                 },

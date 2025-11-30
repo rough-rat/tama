@@ -1,7 +1,6 @@
 use esp_idf_hal::{
     delay::FreeRtos,
     gpio::PinDriver,
-    ledc::{self, config::TimerConfig, LedcDriver, LedcTimerDriver},
     prelude::*,
     spi::{self, Dma, SpiDeviceDriver, SpiDriver, SpiDriverConfig},
 };
@@ -17,10 +16,9 @@ use embedded_graphics::{
     primitives::Rectangle,
 };
 use std::sync::{Arc, Mutex, Condvar};
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread::{self, JoinHandle};
 
-use super::DisplaySpiPeripherals;
+use super::{DisplaySpiPeripherals, BacklightControl};
 
 pub const DISPLAY_WIDTH: u32 = 240;
 pub const DISPLAY_HEIGHT: u32 = 280;
@@ -106,23 +104,25 @@ impl SharedFramebuffer {
 /// in the background.
 pub struct DisplayDriver {
     shared_fb: SharedFramebuffer,
-    backlight_brightness: Arc<AtomicU8>,
+    backlight: BacklightControl,
     #[allow(dead_code)]
     transfer_thread: JoinHandle<()>,
 }
 
 impl DisplayDriver {
-    /// Creates a new display driver from display peripherals.
+    /// Creates a new display driver from display peripherals and backlight control.
     /// 
     /// This will:
     /// 1. Configure SPI with DMA
-    /// 2. Set up PWM backlight (controlled via set_backlight())
-    /// 3. Spawn a transfer thread that initializes the display and handles framebuffer transfers
+    /// 2. Spawn a transfer thread that initializes the display and handles framebuffer transfers
+    /// 
+    /// The backlight is controlled via the provided BacklightControl from PwmBus.
     /// 
     /// Returns a DisplayDriver with a shared framebuffer that can be used
     /// for rendering from the main thread.
     pub fn new(
-        display_peripherals: DisplaySpiPeripherals<spi::SPI2, ledc::CHANNEL0, ledc::TIMER0>,
+        display_peripherals: DisplaySpiPeripherals<spi::SPI2>,
+        backlight: BacklightControl,
     ) -> Self {
         // Display control pins
         let dc_pin = PinDriver::output(display_peripherals.control.dc).unwrap();
@@ -164,12 +164,8 @@ impl DisplayDriver {
         // Clone Arc references for the display transfer thread
         let (fb_arc, frame_ready_arc) = shared_fb.clone_for_transfer();
 
-        // Shared backlight brightness (0-100%)
-        let backlight_brightness = Arc::new(AtomicU8::new(100));
-        let backlight_brightness_thread = Arc::clone(&backlight_brightness);
-
-        // Extract backlight peripherals to move into thread
-        let backlight_peripherals = display_peripherals.control.backlight;
+        // Clone backlight control for the transfer thread
+        let backlight_thread = backlight.clone();
         
         // Spawn display transfer thread
         log::info!("Spawning display transfer thread...");
@@ -180,21 +176,8 @@ impl DisplayDriver {
             .spawn(move || {
                 log::info!("Display transfer thread started - initializing display...");
 
-                // Initialize PWM backlight driver in the thread
-                let timer_driver = LedcTimerDriver::new(
-                    backlight_peripherals.timer,
-                    &TimerConfig::new().frequency(25.kHz().into()),
-                ).unwrap();
-                
-                let mut backlight_driver = LedcDriver::new(
-                    backlight_peripherals.channel,
-                    timer_driver,
-                    backlight_peripherals.pin,
-                ).unwrap();
-
-                let max_duty = backlight_driver.get_max_duty();
-                backlight_driver.set_duty(max_duty).unwrap(); // Start at 100%
-                log::info!("PWM backlight initialized (max duty: {})", max_duty);
+                // Backlight is already initialized by PwmBus
+                log::info!("Using backlight control from PwmBus");
 
                 let mut current_brightness: u8 = 100;
                 
@@ -226,12 +209,10 @@ impl DisplayDriver {
                     *ready = false;
                     drop(ready);
 
-                    // Check if backlight brightness changed
-                    let new_brightness = backlight_brightness_thread.load(Ordering::Relaxed);
+                    // Check if backlight brightness changed (handled by PwmBus thread)
+                    let new_brightness = backlight_thread.get_brightness();
                     if new_brightness != current_brightness {
-                        let duty = (max_duty as u32 * new_brightness as u32 / 100) as u32;
-                        backlight_driver.set_duty(duty).unwrap();
-                        log::info!("Backlight changed: {}% (duty: {})", new_brightness, duty);
+                        log::info!("Backlight changed: {}%", new_brightness);
                         current_brightness = new_brightness;
                     }
                     
@@ -276,21 +257,20 @@ impl DisplayDriver {
 
         Self {
             shared_fb,
-            backlight_brightness,
+            backlight,
             transfer_thread,
         }
     }
 
     /// Sets the backlight brightness (0-100%).
-    /// The change will take effect on the next frame.
+    /// The change will take effect on the next PWM bus update.
     pub fn set_backlight(&self, brightness: u8) {
-        let brightness = brightness.min(100);
-        self.backlight_brightness.store(brightness, Ordering::Relaxed);
+        self.backlight.set_brightness(brightness.min(100));
     }
 
     /// Gets the current backlight brightness setting (0-100%).
     pub fn get_backlight(&self) -> u8 {
-        self.backlight_brightness.load(Ordering::Relaxed)
+        self.backlight.get_brightness()
     }
 
     /// Returns a reference to the shared framebuffer for rendering.
