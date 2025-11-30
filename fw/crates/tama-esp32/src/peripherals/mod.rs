@@ -1,13 +1,15 @@
 mod button_driver;
 mod display_driver;
 mod sensor_driver;
+pub mod sensors_i2c;
 
 pub use button_driver::ButtonDriver;
 pub use display_driver::DisplayDriver;
 pub use sensor_driver::SensorDriver;
 
 use esp_idf_hal::adc;
-use esp_idf_hal::gpio::{AnyInputPin, AnyOutputPin};
+use esp_idf_hal::gpio::{AnyInputPin, AnyIOPin, AnyOutputPin};
+use esp_idf_hal::i2c::I2C0;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi;
 
@@ -37,6 +39,11 @@ pub struct SensorPeripherals {
     pub light_sensor_pin: esp_idf_hal::gpio::Gpio2, // GPIO2 - Light sensor
     pub light_sensor_enable: AnyOutputPin,          // GPIO40 - Light sensor enable
     pub mic_pin: esp_idf_hal::gpio::Gpio1,         // GPIO1 - Microphone
+    // I2C sensor bus
+    pub i2c: I2C0,
+    pub i2c_sda: AnyIOPin,                         // GPIO35
+    pub i2c_scl: AnyIOPin,                         // GPIO36
+    pub acc_int1: AnyInputPin,                     // GPIO47 - accelerometer interrupt
 }
 
 pub struct BacklightPeripherals<Channel, Timer> {
@@ -81,6 +88,11 @@ impl SystemPeripherals<spi::SPI2, esp_idf_hal::ledc::CHANNEL0, esp_idf_hal::ledc
                 light_sensor_pin: peripherals.pins.gpio2,
                 light_sensor_enable: peripherals.pins.gpio40.into(),
                 mic_pin: peripherals.pins.gpio1,
+                // I2C sensor bus
+                i2c: peripherals.i2c0,
+                i2c_sda: peripherals.pins.gpio35.into(),
+                i2c_scl: peripherals.pins.gpio36.into(),
+                acc_int1: peripherals.pins.gpio47.into(),
             },
             display: DisplaySpiPeripherals {
                 control: DisplayControlPeripherals {

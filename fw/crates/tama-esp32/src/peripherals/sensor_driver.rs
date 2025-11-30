@@ -4,11 +4,12 @@ use std::sync::{Arc, Mutex};
 use esp_idf_hal::adc::attenuation::DB_11;
 use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
-use esp_idf_hal::gpio::{self, AnyOutputPin, PinDriver, Output};
+use esp_idf_hal::gpio::{self, AnyInputPin, AnyOutputPin, PinDriver, Output};
 
 use tama_core::input::{Input, SensorType};
 
 use crate::peripherals::SensorPeripherals;
+use crate::peripherals::sensors_i2c::{I2cSensorBus, I2cBusConfig};
 
 /// Shared sensor state for thread-safe access
 #[derive(Default, Clone)]
@@ -44,6 +45,13 @@ pub struct SensorDriver<'d> {
     
     // Microphone: GPIO1
     mic_channel: AdcChannelDriver<'d, gpio::Gpio1, SharedAdcDriver<'d>>,
+    
+    // I2C sensor bus for accelerometer and temp/humidity
+    i2c_bus: I2cSensorBus<'d>,
+    
+    // Accelerometer interrupt pin (unused for now)
+    #[allow(dead_code)]
+    acc_int1: AnyInputPin,
     
     // Shared state for thread-safe access
     state: SharedState,
@@ -81,13 +89,39 @@ impl<'d> SensorDriver<'d> {
         let mic_channel = AdcChannelDriver::new(adc, peripherals.mic_pin, &config)
             .expect("Failed to create microphone ADC channel");
         
+        // Initialize I2C sensor bus
+        let i2c_config = I2cBusConfig::default();
+        let i2c_bus = I2cSensorBus::new(
+            peripherals.i2c,
+            peripherals.i2c_sda,
+            peripherals.i2c_scl,
+            &i2c_config,
+        ).expect("Failed to create I2C sensor bus");
+        
         Self {
             battery_channel,
             light_channel,
             light_enable,
             mic_channel,
+            i2c_bus,
+            acc_int1: peripherals.acc_int1,
             state: Arc::new(Mutex::new(SharedSensorState::default())),
         }
+    }
+    
+    /// Scan the I2C rail for connected devices
+    /// 
+    /// Returns a vector of I2C addresses that responded.
+    /// Use this at startup to verify sensor presence.
+    pub fn scan_i2c_rail(&mut self) -> Vec<u8> {
+        self.i2c_bus.scan()
+    }
+    
+    /// Scan the I2C rail and return a human-readable report
+    /// 
+    /// Returns a formatted string describing all found devices.
+    pub fn scan_i2c_rail_report(&mut self) -> String {
+        self.i2c_bus.scan_report()
     }
     
     /// Get a clone of the shared state handle
@@ -109,7 +143,7 @@ impl<'d> SensorDriver<'d> {
         }
 
         //print battery voltage for debugging
-        log::info!("Battery voltage: {:.2} V", state.battery_voltage);
+        log::trace!("Battery voltage: {:.2} V", state.battery_voltage);
         
         // Read light sensor (enable first, then read)
         self.light_enable.set_high().ok();
@@ -121,7 +155,7 @@ impl<'d> SensorDriver<'d> {
         self.light_enable.set_low().ok();
 
         //print light sensor value for debugging
-        log::info!("Light sensor raw value: {}", state.light_sensor);
+        log::trace!("Light sensor raw value: {}", state.light_sensor);
 
         
         // Read microphone level

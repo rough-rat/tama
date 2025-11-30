@@ -35,6 +35,9 @@ fn main() {
     let mut sensor_driver = SensorDriver::new(peripherals.sensors);
     log::info!("Sensor driver configured");
 
+    // Scan I2C bus for connected sensors
+    log::info!("{}", sensor_driver.scan_i2c_rail_report());
+
     // Set GPIO5 high before configuring SPI
     let mut gpio5 = PinDriver::output(peripherals.gpio5).unwrap();
     gpio5.set_high().unwrap();

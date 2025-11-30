@@ -6093,6 +6093,17 @@
 		)
 		(uuid "4823ed46-b4fa-458f-bc6a-374a08a5d12c")
 	)
+	(text "B -> 7\nA -> 15\nU -> 8\nD -> 18\nL -> 17\nR -> 16\nBOOT -> 0\n"
+		(exclude_from_sim no)
+		(at 256.032 162.052 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "48ca79a0-6cd0-4260-8ea6-503a1c4bc83c")
+	)
 	(text "sensors:\n- accel [ok]\n- light sensor [ok]\n- mic [ok]\n- thermohigro "
 		(exclude_from_sim no)
 		(at 24.13 94.234 0)
