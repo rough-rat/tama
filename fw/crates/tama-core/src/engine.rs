@@ -5,7 +5,7 @@ use embedded_graphics::{
 };
 use rand::{SeedableRng, rngs::SmallRng};
 
-use crate::{buzzer::BuzzerTrait, consts, input::Input, log_buffer::LogEntry, output::Output, scenes::{Scene as _, SceneWrapper, UpdateResult, selftest::SelfTestScene}};
+use crate::{buzzer::BuzzerTrait, consts, input::Input, log_buffer::LogEntry, output::Output, scenes::{Scene as _, SceneWrapper, UpdateResult, selftest::SelfTestScene, ui_test::UiTestScene}};
 
 // Default stub buzzer for embedded targets
 pub struct StubBuzzer;
@@ -33,18 +33,12 @@ impl Default for Engine {
 
 impl Engine {
     pub fn new() -> Self {
-        Self {
-            scene: SceneWrapper::from(SelfTestScene::new()),
-            buzzer: Box::new(StubBuzzer),
-            rng: SmallRng::seed_from_u64(2137),
-            input: Input::new(),
-            log_entries: Vec::new(),
-        }
+        Self::with_buzzer(Box::new(StubBuzzer))
     }
 
     pub fn with_buzzer(buzzer: Box<dyn BuzzerTrait>) -> Self {
         Self {
-            scene: SceneWrapper::from(SelfTestScene::new()),
+            scene: SceneWrapper::from(UiTestScene::new()),
             buzzer,
             rng: SmallRng::seed_from_u64(2137),
             input: Input::new(),

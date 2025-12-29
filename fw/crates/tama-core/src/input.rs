@@ -123,4 +123,10 @@ impl Input {
     pub fn get_sensor_value(&self, sensor_type: SensorType) -> f32 {
         self.sensors[sensor_type as usize].moving_avg
     }
+    pub fn is_just_released(&self, button: Button) -> bool {
+        let state = self.buttons[button as usize];
+        state == ButtonState::JustReleased
+    }
+
+
 }

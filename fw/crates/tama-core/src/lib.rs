@@ -12,6 +12,7 @@ pub mod output;
 mod scenes;
 mod assets;
 mod gfx;
+mod ui;
 
 /// Log a notice-level message (above error, always captured).
 /// 
