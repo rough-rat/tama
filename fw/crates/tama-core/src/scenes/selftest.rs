@@ -8,6 +8,7 @@ use embedded_graphics::{
 
 use crate::{
     consts, 
+    engine::DrawContext,
     log_buffer::LogEntry,
     scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene}
 };
@@ -84,7 +85,7 @@ impl Scene for SelfTestScene {
         UpdateResult::None
     }
 
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+    fn draw<D>(&self, target: &mut D, _ctx: &DrawContext) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = consts::ColorType>,
     {

@@ -1,16 +1,18 @@
+use core::fmt::Write as _;
 use embedded_graphics::{
     Drawable as _,
-    mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10},
+    mono_font::{MonoTextStyle, ascii::FONT_6X10},
     prelude::{DrawTarget, Point, Primitive, RgbColor, Size, WebColors},
     primitives::{PrimitiveStyle, Rectangle},
     text::{Alignment, Text, renderer::TextRenderer},
 };
+use heapless::String;
 
-use crate::consts;
+use crate::{consts, engine::DrawContext, input::SensorType};
 
 // Drawing
 
-pub fn draw_top_bar<DT>(target: &mut DT) -> Result<(), DT::Error>
+pub fn draw_top_bar<DT>(target: &mut DT, ctx: &DrawContext) -> Result<(), DT::Error>
 where
     DT: DrawTarget<Color = consts::ColorType>,
 {
@@ -29,9 +31,12 @@ where
     )
     .draw(target)?;
 
+    let battery_voltage = ctx.input.get_sensor_value(SensorType::BatteryLevel);
+    let mut battery_text = String::<16>::new();
+    let _ = write!(battery_text, "{:.2}V", battery_voltage);
     Text::with_alignment(
-        "67%",
-        Point::new(width as i32, text_y),
+        battery_text.as_str(),
+        Point::new((width as i32) - 20, text_y),
         text_style,
         Alignment::Right,
     )

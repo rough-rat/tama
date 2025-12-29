@@ -50,7 +50,8 @@ impl Engine {
     where
         D: DrawTarget<Color = consts::ColorType>,
     {
-        self.scene.draw(target)
+        let ctx = DrawContext::new(&self.input, &self.log_entries);
+        self.scene.draw(target, &ctx)
     }
 
     pub fn update(&mut self) {
@@ -116,3 +117,13 @@ impl<'a> Context<'a> {
     }
 }
 
+pub struct DrawContext<'a> {
+    pub input: &'a Input,
+    pub log_entries: &'a [LogEntry],
+}
+
+impl<'a> DrawContext<'a> {
+    fn new(input: &'a Input, log_entries: &'a [LogEntry]) -> Self {
+        Self { input, log_entries }
+    }
+}

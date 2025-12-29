@@ -7,7 +7,7 @@ use heapless::Deque;
 use rand::Rng;
 
 use crate::{
-    assets, consts, engine::Context, gfx::Sprite, input::Button, scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene}
+    assets, consts, engine::{Context, DrawContext}, gfx::Sprite, input::Button, scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene}
 };
 
 const SCROLL_SPEED: i32 = 1;
@@ -103,7 +103,7 @@ impl Scene for FlappyScene {
         UpdateResult::None
     }
 
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+    fn draw<D>(&self, target: &mut D, _ctx: &DrawContext) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = consts::ColorType>,
     {

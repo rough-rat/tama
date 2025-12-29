@@ -7,7 +7,7 @@ use heapless::String;
 
 use crate::{
     consts,
-    engine::Context,
+    engine::{Context, DrawContext},
     input::Button,
     scenes::{Scene, UpdateResult},
     ui::{draw_button, draw_para, draw_top_bar},
@@ -66,14 +66,14 @@ impl Scene for UiTestScene {
         UpdateResult::None
     }
 
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+    fn draw<D>(&self, target: &mut D, ctx: &DrawContext) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = consts::ColorType>,
     {
         let size = target.bounding_box().size;
 
         target.clear(consts::ColorType::WHITE)?;
-        draw_top_bar(target)?;
+        draw_top_bar(target, ctx)?;
         let button_size = Size::new(64, 24);
         let buttons_start_y = 64;
         let vertical_margin = 8;

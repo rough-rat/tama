@@ -1,7 +1,7 @@
 use embedded_graphics::prelude::DrawTarget;
 use enum_dispatch::enum_dispatch;
 
-use crate::{consts, engine::Context, scenes::{flappy::FlappyScene, menu::MenuScene, selftest::SelfTestScene, ui_test::UiTestScene}};
+use crate::{consts, engine::{Context, DrawContext}, scenes::{flappy::FlappyScene, menu::MenuScene, selftest::SelfTestScene, ui_test::UiTestScene}};
 
 pub mod dvd;
 pub mod flappy;
@@ -18,7 +18,7 @@ pub enum UpdateResult {
 #[enum_dispatch]
 pub trait Scene {
     fn update(&mut self, ctx: &mut Context) -> UpdateResult;
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+    fn draw<D>(&self, target: &mut D, ctx: &DrawContext) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = consts::ColorType>;
 }

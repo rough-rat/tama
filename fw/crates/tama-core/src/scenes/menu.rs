@@ -7,7 +7,7 @@ use embedded_graphics::{
 };
 
 use crate::{
-    assets, consts, gfx::Sprite, input::Button, scenes::{Scene, SceneWrapper, UpdateResult, flappy::FlappyScene}
+    assets, consts, engine::DrawContext, gfx::Sprite, input::Button, scenes::{Scene, SceneWrapper, UpdateResult, flappy::FlappyScene}
 };
 
 pub struct MenuScene;
@@ -26,7 +26,7 @@ impl Scene for MenuScene {
         UpdateResult::None
     }
 
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+    fn draw<D>(&self, target: &mut D, _ctx: &DrawContext) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = consts::ColorType>,
     {
