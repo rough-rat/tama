@@ -1,12 +1,13 @@
 use embedded_graphics::prelude::DrawTarget;
 use enum_dispatch::enum_dispatch;
 
-use crate::{consts, engine::Context, scenes::{flappy::FlappyScene, menu::MenuScene, selftest::SelfTestScene}};
+use crate::{consts, engine::Context, scenes::{flappy::FlappyScene, menu::MenuScene, selftest::SelfTestScene, ui_test::UiTestScene}};
 
 pub mod dvd;
 pub mod flappy;
 pub mod menu;
 pub mod selftest;
+pub mod ui_test;
 
 pub enum UpdateResult {
     None,
@@ -28,4 +29,5 @@ pub enum SceneWrapper {
     MenuScene,
     FlappyScene,
     SelfTestScene,
+    UiTestScene,
 }
