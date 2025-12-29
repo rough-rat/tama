@@ -1,20 +1,19 @@
 //! Sensor Driver - Light, microphone, and I2C sensor management
 //!
 //! This module handles:
-//! - Light sensor via ADC (GPIO2, with enable on GPIO40)
-//! - Microphone via ADC (GPIO1)
+//! - Light sensor via ADC (GPIO2, with enable on GPIO40) - reads from AdcBus
+//! - Microphone via ADC (GPIO1) - reads from AdcBus
 //! - I2C sensors (accelerometer, temperature/humidity)
 //!
 //! Battery monitoring is handled by PowerControl.
 
 use std::sync::{Arc, Mutex};
 
-use esp_idf_hal::adc::oneshot::AdcChannelDriver;
-use esp_idf_hal::gpio::{self, AnyInputPin, AnyOutputPin, Output, PinDriver};
+use esp_idf_hal::gpio::{AnyInputPin, AnyOutputPin, Output, PinDriver};
 
 use tama_core::input::{Input, SensorType};
 
-use crate::peripherals::adc_bus::{AdcBus, SharedAdc1Driver};
+use crate::peripherals::adc_bus::AdcBus;
 use crate::peripherals::power_control::PowerControl;
 use crate::peripherals::sensors_i2c::{I2cBusConfig, I2cSensorBus};
 use crate::peripherals::SensorPeripherals;
@@ -33,19 +32,15 @@ type SharedState = Arc<Mutex<SharedSensorState>>;
 /// Sensor driver that handles light, microphone, and I2C sensors
 /// 
 /// Sensors:
-/// - LightSensor: ADC on GPIO2, enable via GPIO40
-/// - MicLoudness: ADC on GPIO1
+/// - LightSensor: ADC on GPIO2 (read via AdcBus), enable via GPIO40
+/// - MicLoudness: ADC on GPIO1 (read via AdcBus)
 /// - Thermometer: I2C HDC1080 (stub for now)
 /// - Accelerometer: I2C MMA8451 (stub for now)
 ///
 /// Note: Battery monitoring is handled by PowerControl
 pub struct SensorDriver<'d> {
-    // Light sensor: GPIO2, with enable on GPIO40
-    light_channel: AdcChannelDriver<'d, gpio::Gpio2, SharedAdc1Driver<'d>>,
+    // Light sensor enable pin (GPIO40)
     light_enable: PinDriver<'d, AnyOutputPin, Output>,
-    
-    // Microphone: GPIO1
-    mic_channel: AdcChannelDriver<'d, gpio::Gpio1, SharedAdc1Driver<'d>>,
     
     // I2C sensor bus for accelerometer and temp/humidity
     i2c_bus: I2cSensorBus<'d>,
@@ -60,19 +55,11 @@ pub struct SensorDriver<'d> {
 
 impl<'d> SensorDriver<'d> {
     /// Create a new SensorDriver with the given peripherals
-    /// 
-    /// Requires an AdcBus for creating ADC channels.
-    pub fn new(adc_bus: &AdcBus<'d>, peripherals: SensorPeripherals) -> Self {
-        // Light sensor channel (GPIO2)
-        let light_channel = adc_bus.create_light_channel(peripherals.light_sensor_pin);
-        
+    pub fn new(peripherals: SensorPeripherals) -> Self {
         // Light sensor enable pin (GPIO40) - start disabled
         let mut light_enable = PinDriver::output(peripherals.light_sensor_enable)
             .expect("Failed to create light enable pin");
         light_enable.set_low().ok();
-        
-        // Microphone channel (GPIO1)
-        let mic_channel = adc_bus.create_mic_channel(peripherals.mic_pin);
         
         // Initialize I2C sensor bus
         let i2c_config = I2cBusConfig::default();
@@ -86,9 +73,7 @@ impl<'d> SensorDriver<'d> {
         log::info!("Sensor driver initialized");
         
         Self {
-            light_channel,
             light_enable,
-            mic_channel,
             i2c_bus,
             acc_int1: peripherals.acc_int1,
             state: Arc::new(Mutex::new(SharedSensorState::default())),
@@ -115,28 +100,28 @@ impl<'d> SensorDriver<'d> {
         self.state.clone()
     }
     
-    /// Update all sensor readings (except battery - use PowerControl)
+    /// Update all sensor readings from the ADC bus (except battery - use PowerControl)
     /// 
     /// Call this periodically from the main loop
-    pub fn update(&mut self) {
+    pub fn update(&mut self, adc_bus: &mut AdcBus) {
         let mut state = self.state.lock().unwrap();
         
         // Read light sensor (enable first, then read)
         self.light_enable.set_high().ok();
         // Small delay would be ideal here, but for simplicity we read immediately
-        if let Ok(raw) = self.light_channel.read_raw() {
-            // Normalize to 0.0 - 1.0 range
-            state.light_sensor = raw as f32 / 4095.0;
-        }
+        let light_raw = adc_bus.read_light_raw();
+        // Normalize to 0.0 - 1.0 range
+        state.light_sensor = light_raw as f32 / 4095.0;
         self.light_enable.set_low().ok();
 
-        log::trace!("Light sensor: {:.3}", state.light_sensor);
+        log::trace!("Light sensor: {:.3} [raw: {}]", state.light_sensor, light_raw);
         
         // Read microphone level
-        if let Ok(raw) = self.mic_channel.read_raw() {
-            // Normalize to 0.0 - 1.0 range
-            state.mic_loudness = raw as f32 / 4095.0;
-        }
+        let mic_raw = adc_bus.read_mic_raw();
+        // Normalize to 0.0 - 1.0 range
+        state.mic_loudness = mic_raw as f32 / 4095.0;
+        
+        log::trace!("Mic level: {:.3} [raw: {}]", state.mic_loudness, mic_raw);
         
         // Thermometer - I2C stub, return room temperature
         state.thermometer = 20.0;

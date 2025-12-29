@@ -35,12 +35,12 @@ fn main() {
     let pwm_bus = PwmBus::new(peripherals.pwm);
     notice!("PWM bus initialized");
 
-    // Initialize shared ADC bus
-    let adc_bus = AdcBus::new(peripherals.adc1, AdcBusConfig::default());
+    // Initialize shared ADC bus with all ADC pins
+    let mut adc_bus = AdcBus::new(peripherals.adc1, peripherals.adc_pins, AdcBusConfig::default());
     notice!("ADC bus initialized");
     
-    // Initialize power controller (battery monitoring, peripheral power)
-    let mut power_control = PowerControl::new(&adc_bus, peripherals.power);
+    // Initialize power controller (peripheral power control)
+    let mut power_control = PowerControl::new(peripherals.power);
     notice!("Power control initialized");
     
     // Enable peripheral power (GPIO5 load switch) before accessing display
@@ -50,8 +50,8 @@ fn main() {
     let mut button_driver = ButtonDriver::new(peripherals.buttons);
     notice!("Button driver configured");
 
-    // Initialize sensor driver
-    let mut sensor_driver = SensorDriver::new(&adc_bus, peripherals.sensors);
+    // Initialize sensor driver (I2C sensors and light enable pin)
+    let mut sensor_driver = SensorDriver::new(peripherals.sensors);
     notice!("Sensor driver configured");
 
     // Scan I2C bus for connected sensors
@@ -85,11 +85,11 @@ fn main() {
         button_driver.update();
         button_driver.apply_to_input(engine.input_mut());
         
-        // Update power state (battery monitoring)
-        power_control.update();
+        // Update power state (battery monitoring) - reads from ADC bus
+        power_control.update(&mut adc_bus);
         
-        // Update sensor readings
-        sensor_driver.update();
+        // Update sensor readings - reads from ADC bus
+        sensor_driver.update(&mut adc_bus);
         let current_time_ms = (unsafe { esp_idf_svc::sys::esp_timer_get_time() } / 1000) as u32;
         sensor_driver.apply_to_input(engine.input_mut(), &power_control, current_time_ms);
         

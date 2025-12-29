@@ -30,18 +30,20 @@ impl SensorData {
 
     pub fn update(&mut self, raw_value: f32, current_time_ms: u32) {
         match self.state {
-            SensorState::SensorError | SensorState::Uninitialized => {
-                // Debug: sensor not initialized or in error state
+            SensorState::SensorError => {
+                // Sensor in error state, don't update
                 return;
+            }
+            SensorState::Uninitialized => {
+                // First update - initialize the sensor
+                self.raw = raw_value;
+                self.moving_avg = raw_value;
+                self.state = SensorState::Normal;
+                self.last_updated_ms = current_time_ms;
             }
             SensorState::Event | SensorState::Normal => {
                 self.raw = raw_value;
-                if self.state == SensorState::Uninitialized {
-                    self.moving_avg = raw_value;
-                    self.state = SensorState::Normal;
-                } else {
-                    self.moving_avg = MOVING_AVG_ALPHA * raw_value + (1.0 - MOVING_AVG_ALPHA) * self.moving_avg;
-                }
+                self.moving_avg = MOVING_AVG_ALPHA * raw_value + (1.0 - MOVING_AVG_ALPHA) * self.moving_avg;
                 self.last_updated_ms = current_time_ms;
             }
         }
