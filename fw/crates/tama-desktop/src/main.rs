@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 
-use embedded_graphics::prelude::Size;
+use embedded_graphics::prelude::{DrawTarget, Point, Size};
+use embedded_graphics::Pixel;
 use embedded_graphics_simulator::sdl2::Keycode;
 use embedded_graphics_simulator::{
     OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
+
+use embedded_graphics::prelude::RgbColor;
 use tama_core::consts;
 use tama_core::engine::Engine;
 use tama_core::input::{Button, ButtonState};
@@ -14,6 +17,9 @@ use tama_core::notice;
 mod buzzer;
 mod log_capture;
 mod mock_hw_tui;
+
+const TOP_CORNER_RADIUS_PX: i32 = 40;
+const BOTTOM_CORNER_RADIUS_PX: i32 = 25;
 
 fn handle_simulator_events(
     engine: &mut Engine, 
@@ -85,6 +91,59 @@ fn handle_simulator_events(
 
 }
 
+fn apply_rounded_corner_mask(display: &mut SimulatorDisplay<consts::ColorType>) {
+    let width = consts::WIDTH as i32;
+    let height = consts::HEIGHT as i32;
+    let top_r = TOP_CORNER_RADIUS_PX;
+    let bottom_r = BOTTOM_CORNER_RADIUS_PX;
+    let top_r_sq = top_r * top_r;
+    let bottom_r_sq = bottom_r * bottom_r;
+
+    let mut pixels: Vec<Pixel<consts::ColorType>> = Vec::new();
+
+    for y in 0..top_r {
+        for x in 0..top_r {
+            let dx = x - top_r;
+            let dy = y - top_r;
+            if dx * dx + dy * dy > top_r_sq {
+                pixels.push(Pixel(Point::new(x, y), consts::ColorType::BLACK));
+            }
+        }
+    }
+
+    for y in 0..top_r {
+        for x in (width - top_r)..width {
+            let dx = x - (width - 1 - top_r);
+            let dy = y - top_r;
+            if dx * dx + dy * dy > top_r_sq {
+                pixels.push(Pixel(Point::new(x, y), consts::ColorType::BLACK));
+            }
+        }
+    }
+
+    for y in (height - bottom_r)..height {
+        for x in 0..bottom_r {
+            let dx = x - bottom_r;
+            let dy = y - (height - 1 - bottom_r);
+            if dx * dx + dy * dy > bottom_r_sq {
+                pixels.push(Pixel(Point::new(x, y), consts::ColorType::BLACK));
+            }
+        }
+    }
+
+    for y in (height - bottom_r)..height {
+        for x in (width - bottom_r)..width {
+            let dx = x - (width - 1 - bottom_r);
+            let dy = y - (height - 1 - bottom_r);
+            if dx * dx + dy * dy > bottom_r_sq {
+                pixels.push(Pixel(Point::new(x, y), consts::ColorType::BLACK));
+            }
+        }
+    }
+
+    let _ = display.draw_iter(pixels);
+}
+
 fn generate_mock_hw_data(engine: &mut Engine, tui: &mock_hw_tui::MockHwTui) {
     // Get sensor values from TUI
     let sensors = tui.get_sensor_state();
@@ -137,6 +196,7 @@ fn main() -> anyhow::Result<()> {
         
         engine.update();
         engine.render(&mut display)?;
+        apply_rounded_corner_mask(&mut display);
     }
 
     Ok(())

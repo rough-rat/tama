@@ -9,9 +9,11 @@ use crate::{
     consts,
     engine::{Context, DrawContext},
     input::Button,
-    scenes::{Scene, UpdateResult},
+    scenes::{Scene, SceneWrapper, UpdateResult, dvd::DvdScene, flappy::FlappyScene},
     ui::{draw_button, draw_para, draw_top_bar},
 };
+
+const BUTTON_LABELS: [&str; 5] = ["Foo", "Bar", "Baz", "Flappy", "DVD"];
 
 pub struct UiTestScene {
     hot_idx: u32,
@@ -32,12 +34,12 @@ impl UiTestScene {
 impl Scene for UiTestScene {
     fn update(&mut self, ctx: &mut Context) -> UpdateResult {
         if ctx.input.is_just_pressed(Button::Down) {
-            self.hot_idx = (self.hot_idx + 1) % 3;
+            self.hot_idx = (self.hot_idx + 1) % BUTTON_LABELS.len() as u32;
         }
 
         if ctx.input.is_just_pressed(Button::Up) {
             self.hot_idx = if self.hot_idx == 0 {
-                2
+                BUTTON_LABELS.len() as u32 - 1
             } else {
                 self.hot_idx - 1
             };
@@ -48,16 +50,23 @@ impl Scene for UiTestScene {
         }
 
         if ctx.input.is_just_released(Button::A) {
-            if self.active_idx.unwrap() == self.hot_idx {
-                let text = match self.hot_idx {
-                    0 => "Foo",
-                    1 => "Bar",
-                    2 => "Baz",
-                    _ => unreachable!(),
-                };
-
-                // fail silently if buffer is exhausted
-                let _ = write!(self.buffer, " {text}");
+            if self.active_idx == Some(self.hot_idx) {
+                match self.hot_idx {
+                    0..=2 => {
+                        let text = BUTTON_LABELS[self.hot_idx as usize];
+                        // fail silently if buffer is exhausted
+                        let _ = write!(self.buffer, " {text}");
+                    }
+                    3 => {
+                        self.active_idx = None;
+                        return UpdateResult::ChangeScene(SceneWrapper::from(FlappyScene::new()));
+                    }
+                    4 => {
+                        self.active_idx = None;
+                        return UpdateResult::ChangeScene(SceneWrapper::from(DvdScene::new()));
+                    }
+                    _ => {}
+                }
             }
 
             self.active_idx = None;
@@ -86,7 +95,7 @@ impl Scene for UiTestScene {
             vertical_margin,
         );
 
-        for (id, text) in ["Foo", "Bar", "Baz"].into_iter().enumerate() {
+        for (id, text) in BUTTON_LABELS.into_iter().enumerate() {
             let slot = layout.next_slot(button_size.height);
             draw_button(
                 target,

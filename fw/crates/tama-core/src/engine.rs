@@ -38,7 +38,7 @@ impl Engine {
 
     pub fn with_buzzer(buzzer: Box<dyn BuzzerTrait>) -> Self {
         Self {
-            scene: SceneWrapper::from(UiTestScene::new()),
+            scene: SceneWrapper::from(SelfTestScene::new()),
             buzzer,
             rng: SmallRng::seed_from_u64(2137),
             input: Input::new(),

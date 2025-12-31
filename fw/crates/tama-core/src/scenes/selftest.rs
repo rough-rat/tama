@@ -10,12 +10,12 @@ use crate::{
     consts, 
     engine::DrawContext,
     log_buffer::LogEntry,
-    scenes::{Scene, SceneWrapper, UpdateResult, menu::MenuScene}
+    scenes::{Scene, SceneWrapper, UpdateResult, ui_test::UiTestScene}
 };
 
 /// Duration to show logs before transitioning to RoughRat display
 const LOG_DISPLAY_MS: u32 = 2000;
-/// Duration to show RoughRat before transitioning to menu
+/// Duration to show RoughRat before transitioning to UI test
 const FINAL_DELAY_MS: u32 = 3000;
 /// Maximum number of log lines we can display
 const MAX_LOG_LINES: usize = 16;
@@ -64,7 +64,7 @@ impl Scene for SelfTestScene {
             self.log_entries.reverse(); // Put back in chronological order
         }
         
-        // After log display phase, play music and transition to menu
+        // After log display phase, play music and transition to UI test
         if self.elapsed_ms >= LOG_DISPLAY_MS {
             let samples = get_music_samples();
 
@@ -73,12 +73,12 @@ impl Scene for SelfTestScene {
                 NOTES_PLAYED += 1;
 
                 if NOTES_PLAYED >= (samples.len() as u32)*3 {
-                    return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
+                    return UpdateResult::ChangeScene(SceneWrapper::from(UiTestScene::new()));
                 }
             }
 
             if self.elapsed_ms >= LOG_DISPLAY_MS + FINAL_DELAY_MS {
-                return UpdateResult::ChangeScene(SceneWrapper::from(MenuScene::new()));
+                return UpdateResult::ChangeScene(SceneWrapper::from(UiTestScene::new()));
             }
         }
         
