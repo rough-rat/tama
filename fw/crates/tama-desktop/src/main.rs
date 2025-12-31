@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use embedded_graphics::prelude::{DrawTarget, Point, Size};
 use embedded_graphics::Pixel;
@@ -9,7 +10,7 @@ use embedded_graphics_simulator::{
 
 use embedded_graphics::prelude::RgbColor;
 use tama_core::consts;
-use tama_core::engine::Engine;
+use tama_core::engine::{Engine, TimeInfo};
 use tama_core::input::{Button, ButtonState};
 use tama_core::input::SensorType;
 use tama_core::notice;
@@ -156,6 +157,18 @@ fn generate_mock_hw_data(engine: &mut Engine, tui: &mock_hw_tui::MockHwTui) {
     engine.input_mut().update_sensor(SensorType::MicLoudness, sensors.mic_loudness, time_ms);
 }
 
+fn system_time_info() -> TimeInfo {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let seconds_today = (now.as_secs() % 86_400) as u32;
+
+    TimeInfo {
+        minutes: seconds_today / 60,
+        seconds: seconds_today % 60,
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     // Initialize log capture system first
     log_capture::init(log::LevelFilter::Info);
@@ -193,6 +206,7 @@ fn main() -> anyhow::Result<()> {
         
         // Push recent log entries to engine for on-screen display
         engine.push_log_entries(log_capture::recent_log_entries(16));
+        engine.set_time(system_time_info());
         
         engine.update();
         engine.render(&mut display)?;

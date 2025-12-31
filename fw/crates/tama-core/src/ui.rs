@@ -23,8 +23,10 @@ where
 
     let text_y = 10; // not sure why this is calculated like that
     let text_style = MonoTextStyle::new(&FONT_6X10, consts::ColorType::WHITE);
+    let mut time_text = String::<8>::new();
+    let _ = write!(time_text, "{:02}:{:02}", ctx.time.minutes, ctx.time.seconds);
     Text::with_alignment(
-        "21:37",
+        time_text.as_str(),
         Point::new(width as i32 / 2, text_y),
         text_style,
         Alignment::Center,

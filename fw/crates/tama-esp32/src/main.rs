@@ -1,5 +1,5 @@
 use tama_core::buzzer::BuzzerTrait;
-use tama_core::engine::Engine;
+use tama_core::engine::{Engine, TimeInfo};
 use tama_core::input::SensorType;
 use tama_core::notice;
 
@@ -95,6 +95,13 @@ fn main() {
         
         // Push recent log entries to engine for on-screen display
         engine.push_log_entries(log_capture::recent_log_entries(16));
+
+        let uptime_seconds =
+            (unsafe { esp_idf_svc::sys::esp_timer_get_time() } / 1_000_000) as u32;
+        engine.set_time(TimeInfo {
+            minutes: uptime_seconds / 60,
+            seconds: uptime_seconds % 60,
+        });
         
         // Update game state
         log::trace!("Core 0: Engine update");

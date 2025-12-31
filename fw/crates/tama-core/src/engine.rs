@@ -21,6 +21,7 @@ pub struct Engine {
     buzzer: Box<dyn BuzzerTrait>,
     rng: SmallRng,
     input: Input,
+    time: TimeInfo,
     /// Log entries for display (updated externally via push_log_entries)
     log_entries: Vec<LogEntry>,
 }
@@ -42,17 +43,18 @@ impl Engine {
             buzzer,
             rng: SmallRng::seed_from_u64(2137),
             input: Input::new(),
+            time: TimeInfo::default(),
             log_entries: Vec::new(),
         }
     }
 
-    pub fn render<D>(&self, target: &mut D) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = consts::ColorType>,
-    {
-        let ctx = DrawContext::new(&self.input, &self.log_entries);
-        self.scene.draw(target, &ctx)
-    }
+pub fn render<D>(&self, target: &mut D) -> Result<(), D::Error>
+where
+    D: DrawTarget<Color = consts::ColorType>,
+{
+    let ctx = DrawContext::new(&self.input, &self.log_entries, self.time);
+    self.scene.draw(target, &ctx)
+}
 
     pub fn update(&mut self) {
         // Create Context on the fly with references to buzzer and log entries
@@ -60,6 +62,7 @@ impl Engine {
         // Temporarily swap input to avoid borrowing issues
         core::mem::swap(&mut context.input, &mut self.input);
         core::mem::swap(&mut context.rng, &mut self.rng);
+        context.time = self.time;
         
         let result = self.scene.update(&mut context);
         
@@ -84,6 +87,10 @@ impl Engine {
         &mut self.input
     }
 
+    pub fn set_time(&mut self, time: TimeInfo) {
+        self.time = time;
+    }
+
     /// Push log entries for display by scenes.
     /// 
     /// This should be called each frame from the platform layer
@@ -102,6 +109,7 @@ pub struct Context<'a> {
     pub rng: SmallRng,
     pub input: Input,
     pub output: Output<'a>,
+    pub time: TimeInfo,
     /// Log entries for display (read-only reference)
     pub log_entries: &'a [LogEntry],
 }
@@ -112,6 +120,7 @@ impl<'a> Context<'a> {
             rng: SmallRng::seed_from_u64(2137),
             input: Input::new(),
             output: Output::new(buzzer),
+            time: TimeInfo::default(),
             log_entries,
         }
     }
@@ -120,10 +129,21 @@ impl<'a> Context<'a> {
 pub struct DrawContext<'a> {
     pub input: &'a Input,
     pub log_entries: &'a [LogEntry],
+    pub time: TimeInfo,
 }
 
 impl<'a> DrawContext<'a> {
-    fn new(input: &'a Input, log_entries: &'a [LogEntry]) -> Self {
-        Self { input, log_entries }
+    fn new(input: &'a Input, log_entries: &'a [LogEntry], time: TimeInfo) -> Self {
+        Self {
+            input,
+            log_entries,
+            time,
+        }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TimeInfo {
+    pub minutes: u32,
+    pub seconds: u32,
 }
